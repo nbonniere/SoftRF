@@ -127,7 +127,7 @@ Copyright (C) 2015-2020 &nbsp;&nbsp;&nbsp; Linar Yusupov\
 
 void handleSettings() {
 
-  size_t size = 5020;
+  size_t size = 5500;
   char *offset;
   size_t len = 0;
   char *Settings_temp = (char *) malloc(size);
@@ -138,7 +138,7 @@ void handleSettings() {
 
   offset = Settings_temp;
 
-  /* Common part 1 */
+  /* Common part 0 */
   snprintf_P ( offset, size,
     PSTR("<html>\
 <head>\
@@ -148,6 +148,31 @@ void handleSettings() {
 <body>\
 <h1 align=center>Settings</h1>\
 <form action='/input' method='GET'>\
+<table width=100%%>\
+<tr>\
+<th align=left>Aircraft ID</th>\
+<td align=center>\
+<input type='checkbox' id='idICAO' name='idICAO' value=%d %s>\
+<label for='idICAO'>ICAO</label>\
+</td>\
+<td align=right>\
+<input type='text' value='%06X' id='aircraftID' name='aircraftID' size='7' maxlength='6'>\
+</td>\
+</tr>\
+</table>"),
+//    ADDR_TYPE_ICAO, (settings->idType == ADDR_TYPE_ICAO) ? "checked" : "",
+    ADDR_TYPE_ICAO, (ThisAircraft.addr_type == ADDR_TYPE_ICAO) ? "checked" : "",
+//    settings->aircraftID /*ThisAircraft.addr*/
+    (settings->aircraftID == 0) ? (SoC->getChipId() & 0x00FFFFFF) : (settings->aircraftID)
+  );
+
+  len = strlen(offset);
+  offset += len;
+  size -= len;
+
+  /* Common part 1 */
+  snprintf_P ( offset, size,
+    PSTR("\
 <table width=100%%>\
 <tr>\
 <th align=left>Mode</th>\
@@ -641,7 +666,7 @@ void handleRoot() {
  </table>\
 </body>\
 </html>"),
-    ThisAircraft.addr, SOFTRF_FIRMWARE_VERSION
+    (SoC->getChipId() & 0x00FFFFFF), SOFTRF_FIRMWARE_VERSION
 #if defined(SOFTRF_ADDRESS)
     "I"
 #endif
@@ -673,9 +698,17 @@ void handleInput() {
   if (Input_temp == NULL) {
     return;
   }
-
+  // assume not ICAO
+  uint8_t tempIDtype = ADDR_TYPE_RANDOM;
+  
   for ( uint8_t i = 0; i < server.args(); i++ ) {
-    if (server.argName(i).equals("mode")) {
+    if (server.argName(i).equals("aircraftID")) {
+      char hexdata[8];
+      server.arg(i).toCharArray(hexdata, 8);
+      settings->aircraftID = strtoul(hexdata,NULL,16);
+    } else if (server.argName(i).equals("idICAO")) {
+      tempIDtype = server.arg(i).toInt();
+    } else if (server.argName(i).equals("mode")) {
       settings->mode = server.arg(i).toInt();
     } else if (server.argName(i).equals("protocol")) {
       settings->rf_protocol = server.arg(i).toInt();
@@ -717,6 +750,9 @@ void handleInput() {
       settings->freq_corr = server.arg(i).toInt();
     }
   }
+  if (settings->idType != tempIDtype) {
+    settings->idType = tempIDtype;
+  }
   snprintf_P ( Input_temp, 1600,
 PSTR("<html>\
 <head>\
@@ -726,6 +762,9 @@ PSTR("<html>\
 </head>\
 <body>\
 <h1 align=center>New settings:</h1>\
+<table width=100%%>\
+<tr><th align=left>Aircraft ID</th><td align=center>%d</td><td align=right>%06X</td></tr>\
+</table>\
 <table width=100%%>\
 <tr><th align=left>Mode</th><td align=right>%d</td></tr>\
 <tr><th align=left>Protocol</th><td align=right>%d</td></tr>\
@@ -752,6 +791,8 @@ PSTR("<html>\
   <p align=center><h1 align=center>Restart is in progress... Please, wait!</h1></p>\
 </body>\
 </html>"),
+  settings->idType,
+  (settings->aircraftID == 0) ? (SoC->getChipId() & 0x00FFFFFF) : (settings->aircraftID),
   settings->mode, settings->rf_protocol, settings->band,
   settings->aircraft_type, settings->alarm, settings->txpower,
   settings->volume, settings->pointer, settings->bluetooth,

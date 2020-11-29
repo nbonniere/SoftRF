@@ -30,7 +30,7 @@
 #endif /* EXCLUDE_EEPROM */
 
 #define SOFTRF_EEPROM_MAGIC   0xBABADEDA
-#define SOFTRF_EEPROM_VERSION 0x0000005F
+#define SOFTRF_EEPROM_VERSION 0x00000060
 
 typedef struct Settings {
     uint8_t  mode;
@@ -60,11 +60,8 @@ typedef struct Settings {
 
     uint8_t  power_save;
     int8_t   freq_corr; /* +/-, kHz */
-    uint8_t  resvd23456;
-    uint8_t  resvd7;
-    uint8_t  resvd8;
-    uint8_t  resvd9;
-    uint8_t  resvd10;
+    uint32_t  aircraftID;
+    uint8_t  idType;
     uint8_t  resvd11;
     uint8_t  resvd12;
     uint8_t  resvd13;
