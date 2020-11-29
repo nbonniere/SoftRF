@@ -74,6 +74,20 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIX_NUM, SOC_GPIO_PIN_LED,
 #endif /* USE_NEOPIXELBUS_LIBRARY */
 
 #if defined(USE_OLED)
+#if defined(USE_OLED_TBEAM_AXP)
+// work around for T-Beam OLED on I2C bus
+U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8_ttgo(TTGO_V2_OLED_PIN_RST,
+                                            TTGO_V2_OLED_PIN_SCL,
+                                            TTGO_V2_OLED_PIN_SDA);
+
+U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8_tbeam(U8X8_PIN_NONE,
+                                             SOC_GPIO_PIN_TBEAM_SCL,
+                                             SOC_GPIO_PIN_TBEAM_SDA);
+
+U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8_heltec(HELTEC_OLED_PIN_RST,
+                                              HELTEC_OLED_PIN_SCL,
+                                              HELTEC_OLED_PIN_SDA);
+#else
 U8X8_SSD1306_128X64_NONAME_2ND_HW_I2C u8x8_ttgo(TTGO_V2_OLED_PIN_RST,
                                                 TTGO_V2_OLED_PIN_SCL,
                                                 TTGO_V2_OLED_PIN_SDA);
@@ -81,6 +95,7 @@ U8X8_SSD1306_128X64_NONAME_2ND_HW_I2C u8x8_ttgo(TTGO_V2_OLED_PIN_RST,
 U8X8_SSD1306_128X64_NONAME_2ND_HW_I2C u8x8_heltec(HELTEC_OLED_PIN_RST,
                                                   HELTEC_OLED_PIN_SCL,
                                                   HELTEC_OLED_PIN_SDA);
+#endif /* USE_OLED_TBEAM_AXP */
 
 extern U8X8_OLED_I2C_BUS_TYPE *u8x8;
 #endif /* USE_OLED */
@@ -768,17 +783,29 @@ static byte ESP32_Display_setup()
             hw_info.revision = 11;
           }
         }
-
         rval = DISPLAY_OLED_TTGO;
       } else {
-        if (!(hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
-              hw_info.revision == 8)) {
-          Wire1.begin(HELTEC_OLED_PIN_SDA , HELTEC_OLED_PIN_SCL);
-          Wire1.beginTransmission(SSD1306_OLED_I2C_ADDR);
-          if (Wire1.endTransmission() == 0) {
-            u8x8 = &u8x8_heltec;
-            esp32_board = ESP32_HELTEC_OLED;
-            rval = DISPLAY_OLED_HELTEC;
+#if defined(USE_OLED_TBEAM_AXP)
+        // work around to avoid using same I2C port as AXP
+        if (hw_info.model == SOFTRF_MODEL_PRIME_MK2) {
+          Wire.begin(SOC_GPIO_PIN_TBEAM_SDA , SOC_GPIO_PIN_TBEAM_SCL);
+          Wire.beginTransmission(SSD1306_OLED_I2C_ADDR);
+          if (Wire.endTransmission() == 0) {
+            u8x8 = &u8x8_tbeam;
+            rval = DISPLAY_OLED_TTGO;
+          }
+        } else
+#endif /* USE_OLED_TBEAM_AXP */
+		{
+          if (!(hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
+                hw_info.revision == 8)) {
+            Wire1.begin(HELTEC_OLED_PIN_SDA , HELTEC_OLED_PIN_SCL);
+            Wire1.beginTransmission(SSD1306_OLED_I2C_ADDR);
+            if (Wire1.endTransmission() == 0) {
+              u8x8 = &u8x8_heltec;
+              esp32_board = ESP32_HELTEC_OLED;
+              rval = DISPLAY_OLED_HELTEC;
+            }
           }
         }
       }

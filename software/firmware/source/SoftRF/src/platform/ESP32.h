@@ -225,6 +225,7 @@ struct rst_info {
 #define NMEA_TCP_SERVICE
 #define USE_NMEALIB
 #define USE_OLED
+#define USE_OLED_TBEAM_AXP  /* to avoid using same I2C bus as AXP chip */
 #define USE_TFT
 //#define USE_NMEA_CFG
 #define USE_BASICMAC
@@ -241,7 +242,13 @@ struct rst_info {
 #define POWER_SAVING_WIFI_TIMEOUT 600000UL /* 10 minutes */
 
 #if defined(USE_OLED)
+#if defined(USE_OLED_TBEAM_AXP)
+// work around for T-Beam OLED I2C bus - change from 2ND wire ('wire1') to 1st 'wire'
+// better way is to use library with assignable &wire
+#define U8X8_OLED_I2C_BUS_TYPE  U8X8_SSD1306_128X64_NONAME_HW_I2C
+#else
 #define U8X8_OLED_I2C_BUS_TYPE  U8X8_SSD1306_128X64_NONAME_2ND_HW_I2C
+#endif /* USE_OLED_TBEAM_AXP */
 #endif /* USE_OLED */
 
 #endif /* PLATFORM_ESP32_H */
