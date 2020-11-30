@@ -156,10 +156,9 @@ bool legacy_decode(void *legacy_pkt, ufo_t *this_aircraft, ufo_t *fop) {
 
     float direction = 0;
     if (speed4 > 0) {
-      direction = atan2f(ns,ew) * 180.0 / PI;  /* -180 ... 180 */
+      direction = atan2f(ew,ns) * 180.0 / PI;  /* -180 ... 180 */
       /* convert from math angle into course relative to north */
-      direction = (direction <= 90.0 ? 90.0 - direction :
-                                      450.0 - direction);
+      direction = (direction >= 0.0 ? direction : direction + 360);
     }
 
     uint16_t vs_u16 = pkt->vs;
@@ -208,29 +207,40 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     float speedf = this_aircraft->speed * _GPS_MPS_PER_KNOT; /* m/s */
     float vsf = this_aircraft->vs / (_GPS_FEET_PER_METER * 60.0); /* m/s */
 
+	// scale by 4, clamp to max
     uint16_t speed4 = (uint16_t) roundf(speedf * 4.0f);
-    if (speed4 > 0x3FF) {
-      speed4 = 0x3FF;
+    if (speed4 > 8*128-1) {
+      speed4 = 8*128-1;
     }
 
-    if        (speed4 & 0x200) {
-      pkt->smult = 3;
-    } else if (speed4 & 0x100) {
-      pkt->smult = 2;
-    } else if (speed4 & 0x080) {
-      pkt->smult = 1;
+	// scale by 10, clamp to max
+    int16_t vs10 = (int16_t) roundf(vsf * 10.0f);
+    if (vs10 > 8*512-1) {
+      vs10 = 8*512-1;
     } else {
-      pkt->smult = 0;
+      if (vs10 < -8*512) {
+        vs10 = -8*512;
+      }
     }
 
-    uint8_t speed = speed4 >> pkt->smult;
+    pkt->smult = 0;
+    // first check horizontal speed
+    while ( (pkt->smult < 3) && (speed4 >  128-1)) {
+	  speed4 >>= 1; pkt->smult++;
+	  vs10 >>= 1;
+	}
+	// now check vertical speed
+    while ( (pkt->smult < 3) && ((vs10 > 512-1) || (vs10 < -512))) {
+	  vs10 >>= 1; pkt->smult++;
+	  speed4 >>= 1;
+	}
+
+    uint8_t speed = speed4;
 
     int8_t ns = (int8_t) (speed * cosf(radians(course)));
     int8_t ew = (int8_t) (speed * sinf(radians(course)));
 
-    int16_t vs10 = (int16_t) roundf(vsf * 10.0f);
-    pkt->vs = vs10 >> pkt->smult;
-
+    pkt->vs = vs10;
     pkt->addr = id & 0x00FFFFFF;
 
     if (this_aircraft->addr_type != ADDR_TYPE_ICAO) {
@@ -250,7 +260,16 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
 
     pkt->lat = (uint32_t ( lat * 1e7) >> 7) & 0x7FFFF;
     pkt->lon = (uint32_t ( lon * 1e7) >> 7) & 0xFFFFF;
-    pkt->alt = alt;
+
+	if (alt < 0) {
+	  pkt->alt = 0; // cannot be negative
+    } else {
+      if (alt >= (1<<13)) {
+        pkt->alt = (1<<13)-1; // clamp to Max
+      } else {
+	    pkt->alt = alt;
+      }
+	}
 
     pkt->airborne = speed > 0 ? 1 : 0;
     pkt->ns[0] = ns; pkt->ns[1] = ns; pkt->ns[2] = ns; pkt->ns[3] = ns;
@@ -258,7 +277,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
 
     pkt->_unk0 = 0;
     pkt->_unk1 = 0;
-    pkt->_unk2 = 0;
+    pkt->_unk2 = 1;
     pkt->_unk3 = 0;
 //    pkt->_unk4 = 0;
 
