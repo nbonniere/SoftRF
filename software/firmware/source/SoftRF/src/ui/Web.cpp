@@ -127,7 +127,7 @@ Copyright (C) 2015-2020 &nbsp;&nbsp;&nbsp; Linar Yusupov\
 
 void handleSettings() {
 
-  size_t size = 5500;
+  size_t size = 5350;
   char *offset;
   size_t len = 0;
   char *Settings_temp = (char *) malloc(size);
@@ -160,9 +160,7 @@ void handleSettings() {
 </td>\
 </tr>\
 </table>"),
-//    ADDR_TYPE_ICAO, (settings->idType == ADDR_TYPE_ICAO) ? "checked" : "",
     ADDR_TYPE_ICAO, (ThisAircraft.addr_type == ADDR_TYPE_ICAO) ? "checked" : "",
-//    settings->aircraftID /*ThisAircraft.addr*/
     (settings->aircraftID == 0) ? (SoC->getChipId() & 0x00FFFFFF) : (settings->aircraftID)
   );
 
@@ -600,7 +598,8 @@ void handleRoot() {
   char str_alt[16];
   char str_Vcc[8];
 
-  char *Root_temp = (char *) malloc(2300);
+  size_t size = 2300;
+  char *Root_temp = (char *) malloc(size);
   if (Root_temp == NULL) {
     return;
   }
@@ -610,7 +609,7 @@ void handleRoot() {
   dtostrf(ThisAircraft.altitude, 7, 1, str_alt);
   dtostrf(vdd, 4, 2, str_Vcc);
 
-  snprintf_P ( Root_temp, 2300,
+  snprintf_P ( Root_temp, size,
     PSTR("<html>\
   <head>\
     <meta name='viewport' content='width=device-width, initial-scale=1'>\
@@ -694,7 +693,8 @@ void handleRoot() {
 
 void handleInput() {
 
-  char *Input_temp = (char *) malloc(1600);
+  size_t size = 1700;
+  char *Input_temp = (char *) malloc(size);
   if (Input_temp == NULL) {
     return;
   }
@@ -753,7 +753,7 @@ void handleInput() {
   if (settings->idType != tempIDtype) {
     settings->idType = tempIDtype;
   }
-  snprintf_P ( Input_temp, 1600,
+  snprintf_P ( Input_temp, size,
 PSTR("<html>\
 <head>\
 <meta http-equiv='refresh' content='15; url=/'>\
@@ -805,7 +805,7 @@ PSTR("<html>\
   SoC->swSer_enableRx(false);
   server.send ( 200, "text/html", Input_temp );
 //  SoC->swSer_enableRx(true);
-  delay(1000);
+  delay(3000);
   free(Input_temp);
   EEPROM_store();
   RF_Shutdown();
