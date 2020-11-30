@@ -31,6 +31,7 @@ void WiFi_fini()    {}
 #include "GNSS.h"
 #include "EEPROM.h"
 #include "WiFi.h"
+#include "tcpip_adapter.h"
 #include "../TrafficHelper.h"
 #include "RF.h"
 #include "../ui/Web.h"
@@ -196,6 +197,26 @@ void Raw_Transmit_UDP()
     SoC->WiFi_transmit_UDP(RELAY_DST_PORT, (byte *)UDPpacketBuffer, len + 1);
 }
 
+// Extend DHCP Lease time - check and set
+#if defined(ESP32)
+void printLeaseTime(){
+  uint32_t leaseTime = 0;
+  if(!tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_GET,TCPIP_ADAPTER_IP_ADDRESS_LEASE_TIME,(void*)&leaseTime, 4)){
+    Serial.printf("DHCPS Lease Time: %u\r\n", leaseTime);
+  }
+}
+void setLeaseTime(){
+  uint32_t lease_time = 24*60; // 24 hours
+  tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
+  tcpip_adapter_dhcps_option(
+    (tcpip_adapter_option_mode_t)TCPIP_ADAPTER_OP_SET,
+    (tcpip_adapter_option_id_t)TCPIP_ADAPTER_IP_ADDRESS_LEASE_TIME,
+    (void*)&lease_time, sizeof(uint32_t)
+  );
+  tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
+}
+#endif
+
 /**
  * @brief Arduino setup function.
  */
@@ -299,6 +320,12 @@ void WiFi_setup()
 #endif
     Serial.print(F("IP address: "));
     Serial.println(WiFi.softAPIP());
+#if defined(ESP32)
+	// Extend DHCP lease time
+    printLeaseTime();
+    setLeaseTime();
+    printLeaseTime();
+#endif
   }
 
   Uni_Udp.begin(RFlocalPort);
