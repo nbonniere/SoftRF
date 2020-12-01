@@ -137,9 +137,7 @@ void Traffic_Update(int ndx)
 
 void ParseData()
 {
-    int i;
-	
-	size_t rx_size = RF_Payload_Size(settings->rf_protocol);
+    size_t rx_size = RF_Payload_Size(settings->rf_protocol);
     rx_size = rx_size > sizeof(fo.raw) ? sizeof(fo.raw) : rx_size;
 
 #if DEBUG
@@ -160,7 +158,7 @@ void ParseData()
 
       fo.rssi = RF_last_rssi;
 
-      for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
+      for (int i=0; i < MAX_TRACKING_OBJECTS; i++) {
 
         if (Container[i].addr == fo.addr) {
           Container[i] = fo;
@@ -174,12 +172,6 @@ void ParseData()
           }
         }
       }
-	  /* detect and delete double IDs */
-      while (++i < MAX_TRACKING_OBJECTS) {
-        if (Container[i].addr == fo.addr) {
-          Container[i] = EmptyFO;
-	    }  
-	  }
     }
 }
 
