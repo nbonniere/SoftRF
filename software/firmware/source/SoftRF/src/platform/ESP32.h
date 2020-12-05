@@ -94,18 +94,18 @@ extern Adafruit_NeoPixel strip;
                                       SOC_GPIO_PIN_TBEAM_LED_V11 :      \
                                       SOC_UNUSED_PIN))))
 
-#define TBEAM_V07_PPS_WIRE_TO_GPIO34
-#if defined(TBEAM_V07_PPS_WIRE_TO_GPIO34)
+#define TBEAM_V07_PPS_WIRE_TO_GPIO37
+#if !defined(TBEAM_V07_PPS_WIRE_TO_GPIO37)
 #define SOC_GPIO_PIN_GNSS_PPS (hw_info.model != SOFTRF_MODEL_PRIME_MK2 ?\
                                 SOC_UNUSED_PIN :                        \
                                 (hw_info.revision == 8 ?                \
                                   SOC_GPIO_PIN_TBEAM_V08_PPS :          \
                                   SOC_UNUSED_PIN))
-#else /* TBEAM_V07_PPS_WIRE_TO_GPIO34 */
+#else /* TBEAM_V07_PPS_WIRE_TO_GPIO37 */
 #define SOC_GPIO_PIN_GNSS_PPS (hw_info.model != SOFTRF_MODEL_PRIME_MK2 ?\
                                 SOC_UNUSED_PIN :                        \
                                 SOC_GPIO_PIN_TBEAM_V08_PPS)
-#endif /* TBEAM_V07_PPS_WIRE_TO_GPIO34 */
+#endif /* TBEAM_V07_PPS_WIRE_TO_GPIO37 */
 
 /* SPI (does match Heltec & TTGO LoRa32 pins mapping) */
 #define SOC_GPIO_PIN_MOSI       27
