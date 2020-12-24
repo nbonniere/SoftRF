@@ -342,6 +342,16 @@ static void CC13XX_setup()
 
 static void CC13XX_post_init()
 {
+  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
+    settings->nmea_out = NMEA_UART;
+  }
+  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
+    settings->gdl90 = GDL90_UART;
+  }
+  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
+    settings->d1090 = D1090_UART;
+  }
+
 #if defined(USE_OLED)
   OLED_info1();
 #endif /* USE_OLED */
@@ -378,7 +388,7 @@ PIN_Config UART0_TableWakeUp[] = {
 };
 #endif
 
-static void CC13XX_fini()
+static void CC13XX_fini(int reason)
 {
   // Disable battery monitoring
   AONBatMonDisable();
@@ -487,17 +497,6 @@ static bool CC13XX_EEPROM_begin(size_t size)
 {
 #if !defined(EXCLUDE_EEPROM)
   EEPROM.begin(size);
-
-  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
-    settings->nmea_out = NMEA_UART;
-  }
-  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
-    settings->gdl90 = GDL90_UART;
-  }
-  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
-    settings->d1090 = D1090_UART;
-  }
-
 #endif
   return true;
 }
@@ -538,10 +537,10 @@ static void CC13XX_Display_loop()
 #endif /* USE_OLED */
 }
 
-static void CC13XX_Display_fini(const char *msg)
+static void CC13XX_Display_fini(int reason)
 {
 #if defined(USE_OLED)
-  OLED_fini(msg);
+  OLED_fini(reason);
 #endif /* USE_OLED */
 }
 
@@ -654,7 +653,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
       break;
     case AceButton::kEventLongPressed:
       if (button == &button_1) {
-        shutdown("  OFF  ");
+        shutdown(SOFTRF_SHUTDOWN_BUTTON);
       }
       break;
   }

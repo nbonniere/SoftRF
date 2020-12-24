@@ -98,6 +98,8 @@ TinyGPSCustom C_Stealth      (gnss, "PSRFC", 17);
 TinyGPSCustom C_noTrack      (gnss, "PSRFC", 18);
 TinyGPSCustom C_PowerSave    (gnss, "PSRFC", 19);
 
+static uint8_t C_NMEA_Source;
+
 #endif /* USE_NMEA_CFG */
 
 bool nmea_handshake(const char *req, const char *resp, bool skipline)
@@ -120,10 +122,10 @@ bool nmea_handshake(const char *req, const char *resp, bool skipline)
 
     while (swSer.read() != '\n' && (millis() - start_time) < timeout_ms) { yield(); }
 
-    delay(50);
+    delay(5);
 
     /* wait for pause after NMEA burst */
-    if (swSer.available() > 0) {
+    if (req && swSer.available() > 0) {
       continue;
     } else {
       /* send request */
@@ -145,11 +147,6 @@ bool nmea_handshake(const char *req, const char *resp, bool skipline)
       while ((millis() - start_time) < timeout_ms) {
 
         c = swSer.read();
-
-        if (c == -1) {
-          /* retry */
-          continue;
-        }
 
         if (isPrintable(c) || c == '\r' || c == '\n') {
           if (i >= sizeof(GNSSbuf)) break;
@@ -730,7 +727,8 @@ static void sony_loop()
 static void sony_fini()
 {
    /* Idle */
-  swSer.write("@GSTP\r\n"); delay(1500);
+  swSer.write("@GSTP\r\n");
+  swSer.flush(); delay(1500);
 
   /* Sony GNSS sleep level (0-2)
    * This command must be issued at Idle state.
@@ -801,32 +799,42 @@ static gnss_id_t goke_probe()
                         GNSS_MODULE_GOKE : GNSS_MODULE_NMEA;
 }
 
+static void goke_sendcmd(const char *cmd)
+{
+  while (swSer.available() > 0) { while (swSer.read() != '\n') {yield();} }
+  swSer.write(cmd);
+  swSer.flush();
+  delay(250);
+}
+
 static bool goke_setup()
 {
   /* There are reports that Air530 does not actually work with GALILEO yet */
   if (settings->band == RF_BAND_CN) {
     /* GPS + BEIDOU */
-    swSer.write("$PGKC115,1,0,1,0*2A\r\n");
+    goke_sendcmd("$PGKC115,1,0,1,0*2A\r\n");
   } else {
     /* GPS + GLONASS */
-    swSer.write("$PGKC115,1,1,0,0*2A\r\n");
+    goke_sendcmd("$PGKC115,1,1,0,0*2A\r\n");
   }
-  swSer.flush(); delay(250);
+
+#if 0
+  /* SBAS */
+  goke_sendcmd("$PGKC239,1*3A\r\n");
+#endif
 
 #if defined(NMEA_TCP_SERVICE)
   /* RMC + GGA + GSA */
-  swSer.write("$PGKC242,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*36\r\n");
+  goke_sendcmd("$PGKC242,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*36\r\n");
 #else
   /* RMC + GGA */
-  swSer.write("$PGKC242,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*37\r\n");
+  goke_sendcmd("$PGKC242,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*37\r\n");
 #endif
-  swSer.flush(); delay(250);
 
-//#if SOC_GPIO_PIN_GNSS_PPS != SOC_UNUSED_PIN
-  /* Enable 3D fix 1PPS output */
-//  swSer.write("$PGKC161,2,100,1000*07\r\n");
-//  swSer.flush(); delay(250);
-//#endif
+  if (SOC_GPIO_PIN_GNSS_PPS != SOC_UNUSED_PIN) {
+    /* Enable 3D fix 1PPS output */
+    goke_sendcmd("$PGKC161,2,200,1000*04\r\n");
+  }
 
   return true;
 }
@@ -838,10 +846,9 @@ static void goke_loop()
 
 static void goke_fini()
 {
-  swSer.write("$PGKC051,0*37\r\n");
-  // swSer.write("$PGKC051,1*36\r\n");
-  // swSer.write("$PGKC105,4*33\r\n");
-  swSer.flush(); delay(250);
+  goke_sendcmd("$PGKC051,0*37\r\n");
+  // goke_sendcmd("$PGKC051,1*36\r\n");
+  // goke_sendcmd("$PGKC105,4*33\r\n");
 }
 
 const gnss_chip_ops_t goke_ops = {
@@ -1003,6 +1010,10 @@ byte GNSS_setup() {
                     SoC->GNSS_PPS_handler, RISING);
   }
 
+#if defined(USE_NMEA_CFG)
+  C_NMEA_Source = settings->nmea_out;
+#endif /* USE_NMEA_CFG */
+
   return (byte) gnss_id;
 }
 
@@ -1155,13 +1166,21 @@ void PickGNSSFix()
       // break;
 #else
     /*
-     * Give priority to control channels on STM32-based
-     * 'Dongle' and 'Retro' Editions
+     * Give priority to control channels over default GNSS input source on
+     * 'Dongle', 'Retro', 'Uni', 'Mini' and 'Badge' Editions
      */
 
-    /* USB input is first */
-    if (SoC->USB_ops && SoC->USB_ops->available() > 0) {
+    /* Bluetooth input is first */
+    if (SoC->Bluetooth_ops && SoC->Bluetooth_ops->available() > 0) {
+      c = SoC->Bluetooth_ops->read();
+
+      C_NMEA_Source = NMEA_BLUETOOTH;
+
+    /* USB input is second */
+    } else if (SoC->USB_ops && SoC->USB_ops->available() > 0) {
       c = SoC->USB_ops->read();
+
+      C_NMEA_Source = NMEA_USB;
 
 #if 0
       /* This makes possible to configure S76x's built-in SONY GNSS from aside */
@@ -1170,9 +1189,11 @@ void PickGNSSFix()
       }
 #endif
 
-    /* Serial input is second */
+    /* Serial input is third */
     } else if (SerialOutput.available() > 0) {
       c = SerialOutput.read();
+
+      C_NMEA_Source = NMEA_UART;
 
 #if 0
       /* This makes possible to configure HTCC-AB02S built-in GOKE GNSS from aside */
@@ -1248,7 +1269,7 @@ void PickGNSSFix()
           else
 #endif
           {
-            NMEA_Out(&GNSSbuf[ndx], write_size, true);
+            NMEA_Out(settings->nmea_out, &GNSSbuf[ndx], write_size, true);
           }
 
           break;
@@ -1265,7 +1286,7 @@ void PickGNSSFix()
             RF_Shutdown();
             SoC->reset();
         } else if (strncmp(C_Version.value(), "OFF", 3) == 0) {
-          shutdown("  OFF  ");
+          shutdown(SOFTRF_SHUTDOWN_NMEA);
         } else if (strncmp(C_Version.value(), "?", 1) == 0) {
           char psrfc_buf[MAX_PSRFC_LEN];
 
@@ -1280,7 +1301,14 @@ void PickGNSSFix()
               settings->power_save );
 
           NMEA_add_checksum(psrfc_buf, sizeof(psrfc_buf) - strlen(psrfc_buf));
-          NMEA_Out((byte *) psrfc_buf, strlen(psrfc_buf), false);
+
+#if !defined(USE_NMEA_CFG)
+          uint8_t dest = settings->nmea_out;
+#else
+          uint8_t dest = C_NMEA_Source;
+#endif /* USE_NMEA_CFG */
+
+          NMEA_Out(dest, (byte *) psrfc_buf, strlen(psrfc_buf), false);
 
         } else if (atoi(C_Version.value()) == PSRFC_VERSION) {
           bool cfg_is_updated = false;

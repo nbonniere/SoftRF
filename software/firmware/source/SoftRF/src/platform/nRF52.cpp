@@ -291,7 +291,7 @@ static void nRF52_loop()
   }
 }
 
-static void nRF52_fini()
+static void nRF52_fini(int reason)
 {
   uint8_t sd_en;
 
@@ -354,8 +354,20 @@ static void nRF52_fini()
 #endif
 
   // setup wake-up pins
-  pinMode(SOC_GPIO_PIN_BUTTON, INPUT_PULLUP_SENSE /* INPUT_SENSE_LOW */);
-  // pinMode(SOC_GPIO_PIN_CONS_RX, INPUT_SENSE_LOW);
+  switch (reason)
+  {
+  case SOFTRF_SHUTDOWN_BUTTON:
+  case SOFTRF_SHUTDOWN_LOWBAT:
+    pinMode(SOC_GPIO_PIN_BUTTON, INPUT_PULLUP_SENSE /* INPUT_SENSE_LOW */);
+    break;
+#if defined(USE_SERIAL_DEEP_SLEEP)
+  case SOFTRF_SHUTDOWN_NMEA:
+    pinMode(SOC_GPIO_PIN_CONS_RX, INPUT_PULLUP_SENSE /* INPUT_SENSE_LOW */);
+    break;
+#endif
+  default:
+    break;
+  }
 
   Serial.end();
 
@@ -500,12 +512,12 @@ static void nRF52_Display_loop()
 #endif /* USE_EPAPER */
 }
 
-static void nRF52_Display_fini(const char *msg)
+static void nRF52_Display_fini(int reason)
 {
 #if defined(USE_EPAPER)
 
   EPD_Clear_Screen();
-  EPD_fini(msg);
+  EPD_fini(reason);
 
   if( EPD_Task_Handle != NULL )
   {
@@ -631,7 +643,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
       break;
     case AceButton::kEventLongPressed:
       if (button == &button_1) {
-        shutdown("OFF");
+        shutdown(SOFTRF_SHUTDOWN_BUTTON);
         Serial.println(F("This will never be printed."));
       }
       break;

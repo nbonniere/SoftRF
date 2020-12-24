@@ -233,6 +233,8 @@ void setup() {
 
   Battery_setup();
 
+  LED_setup();
+
   /*
    * Display 'U' (UAT) on OLED for Rx only modes.
    */
@@ -240,8 +242,14 @@ void setup() {
 
   Serial.println("Receiver mode.");
 
+  if (hw_info.display != DISPLAY_NONE)  delay(3000);
+
   myLink.begin(EasyLink_Phy_Custom);
   Serial.println("Listening...");
+
+  hw_info.rf = RF_IC_CC13XX;
+
+  SoC->post_init();
 
   SoC->WDT_setup();
 }
@@ -263,6 +271,9 @@ void loop() {
   // Show status info on tiny OLED display
   SoC->Display_loop();
 
+  // battery status LED
+  LED_loop();
+
   SoC->loop();
 
   Battery_loop();
@@ -272,13 +283,13 @@ void loop() {
   yield();
 }
 
-void shutdown(const char *msg)
+void shutdown(int reason)
 {
   SoC->WDT_fini();
 
-  SoC->Display_fini(msg);
+  SoC->Display_fini(reason);
 
   SoC->Button_fini();
 
-  SoC_fini();
+  SoC_fini(reason);
 }

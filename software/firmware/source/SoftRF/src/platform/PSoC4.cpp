@@ -88,6 +88,7 @@ static void PSoC4_SerialWakeup()
   }
 }
 
+#if SOC_GPIO_PIN_BUTTON != SOC_UNUSED_PIN
 static void PSoC4_User_Key_Wakeup()
 {
   if (hw_info.model == SOFTRF_MODEL_MINI &&
@@ -105,6 +106,7 @@ static void PSoC4_User_Key_Wakeup()
     }
   }
 }
+#endif /* SOC_GPIO_PIN_BUTTON != SOC_UNUSED_PIN */
 
 static void PSoC4_setup()
 {
@@ -154,6 +156,16 @@ static void PSoC4_setup()
 
 static void PSoC4_post_init()
 {
+  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
+    settings->nmea_out = NMEA_UART;
+  }
+  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
+    settings->gdl90 = GDL90_UART;
+  }
+  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
+    settings->d1090 = D1090_UART;
+  }
+
   if (hw_info.model == SOFTRF_MODEL_MINI) {
     Serial.println();
     Serial.println(F("CubeCell-GPS Power-on Self Test"));
@@ -191,7 +203,7 @@ static void PSoC4_loop()
   }
 }
 
-static void PSoC4_fini()
+static void PSoC4_fini(int reason)
 {
   if (hw_info.model == SOFTRF_MODEL_MINI) {
 
@@ -214,11 +226,24 @@ static void PSoC4_fini()
 
     Serial.end();
 
-    pinMode(SOC_GPIO_PIN_BUTTON, INPUT);
-    attachInterrupt(digitalPinToInterrupt(SOC_GPIO_PIN_BUTTON), PSoC4_User_Key_Wakeup, FALLING);
-
-    pinMode(SOC_GPIO_PIN_CONS_RX, INPUT);
-    attachInterrupt(digitalPinToInterrupt(SOC_GPIO_PIN_CONS_RX), PSoC4_SerialWakeup, FALLING);
+    switch (reason)
+    {
+#if SOC_GPIO_PIN_BUTTON != SOC_UNUSED_PIN
+    case SOFTRF_SHUTDOWN_BUTTON:
+    case SOFTRF_SHUTDOWN_LOWBAT:
+      pinMode(SOC_GPIO_PIN_BUTTON, INPUT);
+      attachInterrupt(digitalPinToInterrupt(SOC_GPIO_PIN_BUTTON),
+                      PSoC4_User_Key_Wakeup, FALLING);
+      break;
+#endif /* SOC_GPIO_PIN_BUTTON != SOC_UNUSED_PIN */
+    case SOFTRF_SHUTDOWN_NMEA:
+      pinMode(SOC_GPIO_PIN_CONS_RX, INPUT);
+      attachInterrupt(digitalPinToInterrupt(SOC_GPIO_PIN_CONS_RX),
+                      PSoC4_SerialWakeup, FALLING);
+      break;
+    default:
+      break;
+    }
   }
 
   PSoC4_state = PSOC4_LOW_POWER;
@@ -313,16 +338,6 @@ static bool PSoC4_EEPROM_begin(size_t size)
 {
   EEPROM.begin(size);
 
-  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
-    settings->nmea_out = NMEA_UART;
-  }
-  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
-    settings->gdl90 = GDL90_UART;
-  }
-  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
-    settings->d1090 = D1090_UART;
-  }
-
   return true;
 }
 
@@ -359,10 +374,10 @@ static void PSoC4_Display_loop()
 #endif /* USE_OLED */
 }
 
-static void PSoC4_Display_fini(const char *msg)
+static void PSoC4_Display_fini(int reason)
 {
 #if defined(USE_OLED)
-  OLED_fini(msg);
+  OLED_fini(reason);
 #endif /* USE_OLED */
 }
 
@@ -465,7 +480,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
       break;
     case AceButton::kEventLongPressed:
       if (button == &button_1) {
-        shutdown("  OFF  ");
+        shutdown(SOFTRF_SHUTDOWN_BUTTON);
 //      Serial.println(F("This will never be printed."));
       }
       break;
@@ -531,7 +546,7 @@ static void PSoC4_Button_fini()
 
 #include "RingBuffer.h"
 
-#define UART1_TX_FIFO_SIZE 512
+#define UART1_TX_FIFO_SIZE (MAX_TRACKING_OBJECTS * 65 + 75 + 75 + 42 + 20)
 
 RingBuffer<uint8_t, UART1_TX_FIFO_SIZE> UART_TX_FIFO =
                                     RingBuffer<uint8_t, UART1_TX_FIFO_SIZE>();

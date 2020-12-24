@@ -248,6 +248,10 @@ struct rst_info {
 
 #define POWER_SAVING_WIFI_TIMEOUT 600000UL /* 10 minutes */
 
+//#define PMK2_SLEEP_MODE 1    // 0.6 mA : esp_deep_sleep_start()
+//#define PMK2_SLEEP_MODE 2    // 0.9 mA : axp.setSleep()
+#define PMK2_SLEEP_MODE 3      //  60 uA : axp.shutdown()
+
 #if defined(USE_OLED)
 #if defined(USE_OLED_TBEAM_AXP)
 // work around for T-Beam OLED I2C bus - change from 2ND wire ('wire1') to 1st 'wire'

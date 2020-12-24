@@ -134,7 +134,7 @@ void setup()
   Serial.print(SoC->name);
   Serial.print(F(" FW.REV: " SOFTRF_FIRMWARE_VERSION " DEV.ID: "));
   Serial.println(String(SoC->getChipId(), HEX));
-  Serial.println(F("Copyright (C) 2015-2020 Linar Yusupov. All rights reserved."));
+  Serial.println(F("Copyright (C) 2015-2021 Linar Yusupov. All rights reserved."));
   Serial.flush();
 
   if (resetInfo) {
@@ -308,7 +308,7 @@ void loop()
   yield();
 }
 
-void shutdown(const char *msg)
+void shutdown(int reason)
 {
   SoC->WDT_fini();
 
@@ -332,13 +332,13 @@ void shutdown(const char *msg)
     GNSS_fini();
   }
 
-  SoC->Display_fini(msg);
+  SoC->Display_fini(reason);
 
   RF_Shutdown();
 
   SoC->Button_fini();
 
-  SoC_fini();
+  SoC_fini(reason);
 }
 
 void normal()

@@ -264,6 +264,8 @@ void setup() {
 
   Battery_setup();
 
+  LED_setup();
+
   /*
    * Display 'U' (UAT) on OLED for Rx only modes.
    * Indicate Tx protocol otherwise
@@ -276,6 +278,8 @@ void setup() {
   RF_loop();
 
   Serial.println(F("Listening..."));
+
+  SoC->post_init();
 
   SoC->WDT_setup();
 }
@@ -436,6 +440,9 @@ void loop() {
   // Show status info on tiny OLED display
   SoC->Display_loop();
 
+  // battery status LED
+  LED_loop();
+
   SoC->loop();
 
   Battery_loop();
@@ -445,7 +452,7 @@ void loop() {
   yield();
 }
 
-void shutdown(const char *msg)
+void shutdown(int reason)
 {
   SoC->WDT_fini();
 
@@ -453,7 +460,7 @@ void shutdown(const char *msg)
 
   SoC->swSer_enableRx(false);
 
-  SoC->Display_fini(msg);
+  SoC->Display_fini(reason);
 
   if (hw_info.rf == RF_IC_CC13XX) {
     EasyLink_abort();
@@ -463,5 +470,5 @@ void shutdown(const char *msg)
 
   SoC->Button_fini();
 
-  SoC_fini();
+  SoC_fini(reason);
 }

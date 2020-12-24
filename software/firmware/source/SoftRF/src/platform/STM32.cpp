@@ -61,6 +61,8 @@ HardwareSerial Serial1(SOC_GPIO_PIN_CONS_RX,  SOC_GPIO_PIN_CONS_TX);
 HardwareSerial Serial2(USART2);
 HardwareSerial Serial4(SOC_GPIO_PIN_SWSER_RX, SOC_GPIO_PIN_SWSER_TX);
 
+static bool STM32_has_TCXO = false;
+
 #elif defined(ARDUINO_BLUEPILL_F103CB)
 
 HardwareSerial Serial2(SOC_GPIO_PIN_SWSER_RX, SOC_GPIO_PIN_SWSER_TX);
@@ -103,6 +105,7 @@ static int STM32_probe_pin(uint32_t pin, uint32_t mode)
 }
 
 static void STM32_SerialWakeup() { }
+static void STM32_ButtonWakeup() { }
 
 static void STM32_setup()
 {
@@ -151,6 +154,16 @@ static void STM32_setup()
       hw_info.model = SOFTRF_MODEL_DONGLE;
       stm32_board   = STM32_TTGO_TMOTION_1_1;
     }
+
+    // PC_1 is Low for TCXO or High for Crystal
+    STM32_has_TCXO = (STM32_probe_pin(SOC_GPIO_PIN_OSC_SEL, INPUT) == 0);
+
+    if (STM32_has_TCXO) {
+      lmic_pins.tcxo = SOC_GPIO_PIN_TCXO_OE;
+      hal_pin_tcxo_init();
+      hal_pin_tcxo(0); // disable TCXO
+    }
+
 #elif defined(ARDUINO_BLUEPILL_F103CB)
     stm32_board = STM32_BLUE_PILL;
 #else
@@ -161,12 +174,14 @@ static void STM32_setup()
     SerialOutput.begin(SERIAL_OUT_BR, SERIAL_OUT_BITS);
 #endif
 
-    uint32_t boot_action = getBackupRegister(BOOT_ACTION_INDEX);
+    uint32_t shudown_reason = getBackupRegister(SHUTDOWN_REASON_INDEX);
 
-    switch (boot_action)
+    switch (shudown_reason)
     {
+    case SOFTRF_SHUTDOWN_NONE:
+      break;
 #if defined(USE_SERIAL_DEEP_SLEEP)
-    case STM32_BOOT_SERIAL_DEEP_SLEEP:
+    case SOFTRF_SHUTDOWN_NMEA:
 #if !defined(USBD_USE_CDC) || defined(DISABLE_GENERIC_SERIALUSB)
       SerialOutput.begin(SERIAL_OUT_BR, SERIAL_OUT_BITS);
 #endif
@@ -174,22 +189,25 @@ static void STM32_setup()
 
       LowPower.deepSleep();
 
-      /* reset onto default value */
-      setBackupRegister(BOOT_ACTION_INDEX, STM32_BOOT_NORMAL);
-
       // Empty Serial Rx
-      while(SerialOutput.available()) {
-        char c = SerialOutput.read();
-      }
+      while (SerialOutput.available()) { SerialOutput.read(); }
       break;
 #endif
-    case STM32_BOOT_SHUTDOWN:
+#if SOC_GPIO_PIN_BUTTON != SOC_UNUSED_PIN
+    case SOFTRF_SHUTDOWN_BUTTON:
+    case SOFTRF_SHUTDOWN_LOWBAT:
+      LowPower.attachInterruptWakeup(SOC_GPIO_PIN_BUTTON,
+                                     STM32_ButtonWakeup, RISING);
+
+      LowPower.deepSleep();
+      break;
+#endif
+    default:
       LowPower_shutdown();
       break;
-    case STM32_BOOT_NORMAL:
-    default:
-      break;
     }
+
+    setBackupRegister(SHUTDOWN_REASON_INDEX, SOFTRF_SHUTDOWN_NONE);
 
     bootCount = getBackupRegister(BOOT_COUNT_INDEX);
     bootCount++;
@@ -199,10 +217,40 @@ static void STM32_setup()
 
     Wire.setSCL(SOC_GPIO_PIN_SCL);
     Wire.setSDA(SOC_GPIO_PIN_SDA);
+
+#if defined(ARDUINO_NUCLEO_L073RZ)
+    lmic_pins.rxe = SOC_GPIO_PIN_ANT_RXTX;
+
+    // Set default value at Rx
+    digitalWrite(SOC_GPIO_PIN_ANT_RXTX, HIGH);
+#endif /* ARDUINO_NUCLEO_L073RZ */
 }
 
 static void STM32_post_init()
 {
+  if (settings->nmea_out == NMEA_BLUETOOTH) {
+#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
+    settings->nmea_out = NMEA_USB;
+#else
+    settings->nmea_out = NMEA_UART;
+#endif
+  }
+  if (settings->gdl90 == GDL90_BLUETOOTH) {
+#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
+    settings->gdl90 = GDL90_USB;
+#else
+    settings->gdl90 = GDL90_UART;
+#endif
+  }
+  if (settings->d1090 == D1090_BLUETOOTH) {
+#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
+    settings->d1090 = D1090_USB;
+#else
+    settings->d1090 = D1090_UART;
+#endif
+  }
+
+#if defined(ARDUINO_NUCLEO_L073RZ)
   if (hw_info.model == SOFTRF_MODEL_DONGLE) {
     Serial.println();
     Serial.println(F("TTGO T-Motion (S76G) Power-on Self Test"));
@@ -213,6 +261,10 @@ static void STM32_post_init()
 
     Serial.print(F("RADIO   : "));
     Serial.println(hw_info.rf      == RF_IC_SX1276        ? F("PASS") : F("FAIL"));
+    if (hw_info.rf == RF_IC_SX1276) {
+      Serial.print(F("CLK SRC : "));
+      Serial.println(STM32_has_TCXO                       ? F("TCXO") : F("Crystal"));
+    }
     Serial.print(F("GNSS    : "));
     Serial.println(hw_info.gnss    == GNSS_MODULE_SONY    ? F("PASS") : F("FAIL"));
 
@@ -228,6 +280,7 @@ static void STM32_post_init()
     Serial.println();
     Serial.flush();
   }
+#endif /* ARDUINO_NUCLEO_L073RZ */
 
 #if defined(USE_OLED)
   OLED_info1();
@@ -274,7 +327,7 @@ static void STM32_loop()
   }
 }
 
-static void STM32_fini()
+static void STM32_fini(int reason)
 {
 #if defined(ARDUINO_NUCLEO_L073RZ)
 
@@ -283,6 +336,13 @@ static void STM32_fini()
   delay(100);
   pinMode(SOC_GPIO_PIN_GNSS_LS, INPUT);
 
+  digitalWrite(SOC_GPIO_PIN_ANT_RXTX, LOW);
+  pinMode(SOC_GPIO_PIN_ANT_RXTX, OUTPUT_OPEN_DRAIN);
+
+  if (!STM32_has_TCXO) {
+    // because PC1 = high for LoRa Crystal, need to be careful of leakage current
+    pinMode(SOC_GPIO_PIN_OSC_SEL, INPUT_PULLUP);
+  }
 #endif /* ARDUINO_NUCLEO_L073RZ */
 
   swSer.end();
@@ -297,11 +357,7 @@ static void STM32_fini()
    * WDT (once enabled) is active all the time
    * until hardware restart
    */
-#if defined(USE_SERIAL_DEEP_SLEEP)
-  setBackupRegister(BOOT_ACTION_INDEX, STM32_BOOT_SERIAL_DEEP_SLEEP);
-#else
-  setBackupRegister(BOOT_ACTION_INDEX, STM32_BOOT_SHUTDOWN);
-#endif
+  setBackupRegister(SHUTDOWN_REASON_INDEX, reason);
 
   HAL_NVIC_SystemReset();
 }
@@ -406,28 +462,6 @@ static bool STM32_EEPROM_begin(size_t size)
 
   EEPROM.begin();
 
-  if (settings->nmea_out == NMEA_BLUETOOTH) {
-#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
-    settings->nmea_out = NMEA_USB;
-#else
-    settings->nmea_out = NMEA_UART;
-#endif
-  }
-  if (settings->gdl90 == GDL90_BLUETOOTH) {
-#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
-    settings->gdl90 = GDL90_USB;
-#else
-    settings->gdl90 = GDL90_UART;
-#endif
-  }
-  if (settings->d1090 == D1090_BLUETOOTH) {
-#if defined(USBD_USE_CDC) && !defined(DISABLE_GENERIC_SERIALUSB)
-    settings->d1090 = D1090_USB;
-#else
-    settings->d1090 = D1090_UART;
-#endif
-  }
-
   return true;
 }
 
@@ -443,7 +477,6 @@ static void STM32_SPI_begin()
 
 static void STM32_swSer_begin(unsigned long baud)
 {
-
   swSer.begin(baud);
 
 #if defined(ARDUINO_NUCLEO_L073RZ)
@@ -493,10 +526,10 @@ static void STM32_Display_loop()
 #endif /* USE_OLED */
 }
 
-static void STM32_Display_fini(const char *msg)
+static void STM32_Display_fini(int reason)
 {
 #if defined(USE_OLED)
-  OLED_fini(msg);
+  OLED_fini(reason);
 #endif /* USE_OLED */
 }
 
@@ -589,7 +622,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
       break;
     case AceButton::kEventLongPressed:
       if (button == &button_1) {
-        shutdown("  OFF  ");
+        shutdown(SOFTRF_SHUTDOWN_BUTTON);
       }
       break;
   }

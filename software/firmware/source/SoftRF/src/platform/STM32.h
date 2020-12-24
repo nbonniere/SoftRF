@@ -99,7 +99,7 @@ typedef struct stm32_backup_struct {
 
 #define STM32_BKP_REG_NUM     5 /* L0 has 5, F1 has 10 */
 #define BOOT_COUNT_INDEX      2
-#define BOOT_ACTION_INDEX     3
+#define SHUTDOWN_REASON_INDEX 3
 
 /* Primary target hardware (S76G) */
 #if defined(ARDUINO_NUCLEO_L073RZ)
@@ -161,6 +161,10 @@ typedef struct stm32_backup_struct {
 
 /* RF antenna switch */
 #define SOC_GPIO_PIN_ANT_RXTX PA1 // 1:Rx, 0:Tx
+
+/* RF clock source */
+#define SOC_GPIO_PIN_TCXO_OE  PD_7
+#define SOC_GPIO_PIN_OSC_SEL  PC1
 
 /* I2C */
 #define SOC_GPIO_PIN_SDA      PB7

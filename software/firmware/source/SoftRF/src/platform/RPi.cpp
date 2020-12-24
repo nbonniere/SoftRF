@@ -315,7 +315,7 @@ static void RPi_loop()
 
 }
 
-static void RPi_fini()
+static void RPi_fini(int reason)
 {
 
 }
@@ -403,12 +403,12 @@ static void RPi_Display_loop()
 #endif /* USE_EPAPER */
 }
 
-static void RPi_Display_fini(const char *msg)
+static void RPi_Display_fini(int reason)
 {
 #if defined(USE_EPAPER)
 
   EPD_Clear_Screen();
-  EPD_fini(msg);
+  EPD_fini(reason);
 
   if ( RPi_EPD_update_thread != (pthread_t) 0)
   {
@@ -552,7 +552,7 @@ static void parseNMEA(const char *str, int len)
     gnss.encode(str[i]);
   }
   if (settings->nmea_g) {
-    NMEA_Out((byte *) str, len, true);
+    NMEA_Out(settings->nmea_out, (byte *) str, len, true);
   }
 
   GNSSTimeSync();
@@ -924,7 +924,7 @@ int main()
   Serial.print(SoC->name);
   Serial.print(F(" FW.REV: " SOFTRF_FIRMWARE_VERSION " DEV.ID: "));
   Serial.println(String(SoC->getChipId(), HEX));
-  Serial.println(F("Copyright (C) 2015-2020 Linar Yusupov. All rights reserved."));
+  Serial.println(F("Copyright (C) 2015-2021 Linar Yusupov. All rights reserved."));
   Serial.flush();
 
   hw_info.rf = RF_setup();
@@ -1005,16 +1005,16 @@ int main()
   return 0;
 }
 
-void shutdown(const char *msg)
+void shutdown(int reason)
 {
   SoC->WDT_fini();
 
   if (hw_info.display != DISPLAY_NONE) {
-    SoC->Display_fini(msg);
+    SoC->Display_fini(reason);
   }
 
   Traffic_TCP_Server.detach();
-  fprintf( stderr, "Program termination: %s.\n", msg );
+  fprintf( stderr, "Program termination. Reason code: %d.\n", reason );
   exit(EXIT_SUCCESS);
 }
 
