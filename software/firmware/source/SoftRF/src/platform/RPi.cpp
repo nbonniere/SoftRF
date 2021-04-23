@@ -1,6 +1,6 @@
 /*
  * Platform_RPi.cpp
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -283,6 +283,8 @@ static void RPi_setup()
 
 static void RPi_post_init()
 {
+
+#if 0
   Serial.println();
   Serial.println(F("Raspberry Pi Power-on Self Test"));
   Serial.println();
@@ -302,6 +304,7 @@ static void RPi_post_init()
   Serial.println(F("Power-on Self Test is completed."));
   Serial.println();
   Serial.flush();
+#endif
 
 #if defined(USE_EPAPER)
 
@@ -329,12 +332,7 @@ static uint32_t RPi_getChipId()
 {
   uint32_t id = SerialNumber ? SerialNumber : gethostid();
 
-  /* remap address to avoid overlapping with congested FLARM range */
-  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
-    id += 0x100000;
-  }
-
-  return id;
+  return DevID_Mapper(id);
 }
 
 static void* RPi_getResetInfoPtr()
@@ -422,9 +420,33 @@ static void RPi_Battery_setup()
   /* TBD */
 }
 
-static float RPi_Battery_voltage()
+static float RPi_Battery_param(uint8_t param)
 {
-  return 0.0;  /* TBD */
+  float rval;
+
+  switch (param)
+  {
+  case BATTERY_PARAM_THRESHOLD:
+    rval = BATTERY_THRESHOLD_USB;
+    break;
+
+  case BATTERY_PARAM_CUTOFF:
+    rval = BATTERY_CUTOFF_USB;
+    break;
+
+  case BATTERY_PARAM_CHARGE:
+    /* TBD */
+
+    rval = 100;
+    break;
+
+  case BATTERY_PARAM_VOLTAGE:
+  default:
+    rval = BATTERY_THRESHOLD_USB + 0.05;
+    break;
+  }
+
+  return rval;
 }
 
 void RPi_GNSS_PPS_Interrupt_handler() {
@@ -505,7 +527,9 @@ const SoC_ops_t RPi_ops = {
   NULL,
   NULL,
   NULL,
+  NULL,
   RPi_WiFi_transmit_UDP,
+  NULL,
   NULL,
   NULL,
   NULL,
@@ -520,7 +544,7 @@ const SoC_ops_t RPi_ops = {
   RPi_Display_loop,
   RPi_Display_fini,
   RPi_Battery_setup,
-  RPi_Battery_voltage,
+  RPi_Battery_param,
   NULL,
   RPi_get_PPS_TimeMarker,
   NULL,
@@ -980,6 +1004,7 @@ int main()
       break;
     }
 
+#if defined(TAKE_CARE_OF_MILLIS_ROLLOVER)
     /* take care of millis() rollover on a long term run */
     if (millis() > (47 * 24 * 3600 * 1000UL)) {
       time_t current_time = time(NULL);
@@ -999,6 +1024,7 @@ int main()
         exit(EXIT_SUCCESS);
       }
     }
+#endif /* TAKE_CARE_OF_MILLIS_ROLLOVER */
   }
 
   Traffic_TCP_Server.detach();

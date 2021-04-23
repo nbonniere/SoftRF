@@ -1,6 +1,6 @@
 /*
  * Platform_PSoC4.cpp
- * Copyright (C) 2020 Linar Yusupov
+ * Copyright (C) 2020-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@
 #include "../driver/LED.h"
 #include "../driver/OLED.h"
 #include "../driver/Baro.h"
+#include "../driver/Sound.h"
+#include "../driver/Battery.h"
 #include "../protocol/data/NMEA.h"
 #include "../protocol/data/GDL90.h"
 #include "../protocol/data/D1090.h"
@@ -72,6 +74,10 @@ typedef enum
 } PSoC4_states_t;
 
 static PSoC4_states_t PSoC4_state = PSOC4_ACTIVE;
+
+#if defined(BAT_MON_DISABLE)
+static bool PSoC4_bat_mon_disable = false;
+#endif
 
 static int PSoC4_probe_pin(uint32_t pin, uint32_t mode)
 {
@@ -156,16 +162,6 @@ static void PSoC4_setup()
 
 static void PSoC4_post_init()
 {
-  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
-    settings->nmea_out = NMEA_UART;
-  }
-  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
-    settings->gdl90 = GDL90_UART;
-  }
-  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
-    settings->d1090 = D1090_UART;
-  }
-
   if (hw_info.model == SOFTRF_MODEL_MINI) {
     Serial.println();
     Serial.println(F("CubeCell-GPS Power-on Self Test"));
@@ -177,7 +173,7 @@ static void PSoC4_post_init()
     Serial.print(F("RADIO   : "));
     Serial.println(hw_info.rf      == RF_IC_SX1262        ? F("PASS") : F("FAIL"));
     Serial.print(F("GNSS    : "));
-    Serial.println(hw_info.gnss    == GNSS_MODULE_GOKE    ? F("PASS") : F("FAIL"));
+    Serial.println(hw_info.gnss    != GNSS_MODULE_NONE    ? F("PASS") : F("FAIL"));
     Serial.print(F("DISPLAY : "));
     Serial.println(hw_info.display == DISPLAY_OLED_HELTEC ? F("PASS") : F("FAIL"));
 
@@ -260,12 +256,7 @@ static uint32_t PSoC4_getChipId()
 #if !defined(SOFTRF_ADDRESS)
   uint32_t id = getID();
 
-  /* remap address to avoid overlapping with congested FLARM range */
-  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
-    id += 0x100000;
-  }
-
-  return id;
+  return DevID_Mapper(id);
 #else
   return (SOFTRF_ADDRESS & 0xFFFFFFFFU );
 #endif
@@ -324,6 +315,11 @@ static void PSoC4_Sound_test(int var)
 
 }
 
+static void PSoC4_Sound_tone(int hz, uint8_t volume)
+{
+  /* TBD */
+}
+
 static void PSoC4_WiFi_set_param(int ndx, int value)
 {
   /* NONE */
@@ -339,6 +335,19 @@ static bool PSoC4_EEPROM_begin(size_t size)
   EEPROM.begin(size);
 
   return true;
+}
+
+static void PSoC4_EEPROM_extension()
+{
+  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
+    settings->nmea_out = NMEA_UART;
+  }
+  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
+    settings->gdl90 = GDL90_UART;
+  }
+  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
+    settings->d1090 = D1090_UART;
+  }
 }
 
 static void PSoC4_SPI_begin()
@@ -383,37 +392,92 @@ static void PSoC4_Display_fini(int reason)
 
 static void PSoC4_Battery_setup()
 {
+#if defined(BAT_MON_DISABLE)
+  if (hw_info.model == SOFTRF_MODEL_MINI) {
+    pinMode(SOC_GPIO_PIN_BMON_DIS, INPUT_PULLDOWN);
 
+    delay(100);
+
+    PSoC4_bat_mon_disable = (digitalRead(SOC_GPIO_PIN_BMON_DIS) == HIGH ?
+                             true : false);
+    pinMode(SOC_GPIO_PIN_BMON_DIS, ANALOG);
+  }
+#endif
 }
 
-static float PSoC4_Battery_voltage()
+static float PSoC4_Battery_param(uint8_t param)
 {
-  uint16_t mV = 0;
+  float rval, voltage;
 
-  if (hw_info.model == SOFTRF_MODEL_MINI &&
-      PSoC4_state   == PSOC4_ACTIVE) {
-    /* GPIO7 is shared between USER_KEY and VBAT_ADC_CTL functions */
-    int user_key_state = digitalRead(SOC_GPIO_PIN_BUTTON);
+  switch (param)
+  {
+  case BATTERY_PARAM_THRESHOLD:
+    rval = hw_info.model == SOFTRF_MODEL_MINI ? BATTERY_THRESHOLD_LIPO   :
+                                                BATTERY_THRESHOLD_NIMHX2;
+    break;
 
-    /* if the key is not pressed down - activate VBAT_ADC_CTL */
-    if (user_key_state == HIGH) {
-      pinMode(VBAT_ADC_CTL,OUTPUT);
-      digitalWrite(VBAT_ADC_CTL,LOW);
+  case BATTERY_PARAM_CUTOFF:
+    rval = hw_info.model == SOFTRF_MODEL_MINI ? BATTERY_CUTOFF_LIPO   :
+                                                BATTERY_CUTOFF_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CHARGE:
+    voltage = Battery_voltage();
+    if (voltage < Battery_cutoff())
+      return 0;
+
+    if (voltage > 4.2)
+      return 100;
+
+    if (voltage < 3.6) {
+      voltage -= 3.3;
+      return (voltage * 100) / 3;
     }
 
-    mV = analogRead(SOC_GPIO_PIN_BATTERY);
+    voltage -= 3.6;
+    rval = 10 + (voltage * 150 );
+    break;
 
-    /* restore previous state of VBAT_ADC_CTL pin */
-    if (user_key_state == HIGH) {
-      /*
-       * CubeCell-GPS has external 10K VDD pullup resistor
-       * connected to GPIO7 (USER_KEY / VBAT_ADC_CTL) pin
-       */
-      pinMode(VBAT_ADC_CTL, INPUT);
+  case BATTERY_PARAM_VOLTAGE:
+  default:
+
+  #if defined(BAT_MON_DISABLE)
+    if (PSoC4_bat_mon_disable) {
+      rval = 0;
+    } else
+  #endif
+    {
+      uint16_t mV = 0;
+
+      if (hw_info.model == SOFTRF_MODEL_MINI &&
+          PSoC4_state   == PSOC4_ACTIVE) {
+        /* GPIO7 is shared between USER_KEY and VBAT_ADC_CTL functions */
+        int user_key_state = digitalRead(SOC_GPIO_PIN_BUTTON);
+
+        /* if the key is not pressed down - activate VBAT_ADC_CTL */
+        if (user_key_state == HIGH) {
+          pinMode(VBAT_ADC_CTL,OUTPUT);
+          digitalWrite(VBAT_ADC_CTL,LOW);
+        }
+
+        mV = analogRead(SOC_GPIO_PIN_BATTERY);
+
+        /* restore previous state of VBAT_ADC_CTL pin */
+        if (user_key_state == HIGH) {
+          /*
+           * CubeCell-GPS has external 10K VDD pullup resistor
+           * connected to GPIO7 (USER_KEY / VBAT_ADC_CTL) pin
+           */
+          pinMode(VBAT_ADC_CTL, INPUT);
+        }
+      }
+
+      rval = mV * SOC_ADC_VOLTAGE_DIV / 1000.0;
     }
+    break;
   }
 
-  return mV * SOC_ADC_VOLTAGE_DIV / 1000.0;
+  return rval;
 }
 
 void PSoC4_GNSS_PPS_Interrupt_handler() {
@@ -553,13 +617,13 @@ RingBuffer<uint8_t, UART1_TX_FIFO_SIZE> UART_TX_FIFO =
 
 static void PSoC4_UART_loop()
 {
-//  while (SerialOutput.availableForWrite() > 0) {
-  while (UART_1_SpiUartGetTxBufferSize() < UART_1_TX_BUFFER_SIZE) {
+  while (SerialOutput.availableForWrite() > 0) {
+//  while (UART_1_SpiUartGetTxBufferSize() < UART_1_TX_BUFFER_SIZE) {
     if (UART_TX_FIFO.empty()) {
       break;
     }
-//    SerialOutput.write(UART_TX_FIFO.read());
-    UART_1_UartPutChar(UART_TX_FIFO.read());
+    SerialOutput.write(UART_TX_FIFO.read());
+//    UART_1_UartPutChar(UART_TX_FIFO.read());
   }
 }
 
@@ -602,6 +666,7 @@ const SoC_ops_t PSoC4_ops = {
   PSoC4_getFreeHeap,
   PSoC4_random,
   PSoC4_Sound_test,
+  PSoC4_Sound_tone,
   NULL,
   PSoC4_WiFi_set_param,
   PSoC4_WiFi_transmit_UDP,
@@ -609,6 +674,7 @@ const SoC_ops_t PSoC4_ops = {
   NULL,
   NULL,
   PSoC4_EEPROM_begin,
+  PSoC4_EEPROM_extension,
   PSoC4_SPI_begin,
   PSoC4_swSer_begin,
   PSoC4_swSer_enableRx,
@@ -619,7 +685,7 @@ const SoC_ops_t PSoC4_ops = {
   PSoC4_Display_loop,
   PSoC4_Display_fini,
   PSoC4_Battery_setup,
-  PSoC4_Battery_voltage,
+  PSoC4_Battery_param,
   PSoC4_GNSS_PPS_Interrupt_handler,
   PSoC4_get_PPS_TimeMarker,
   PSoC4_Baro_setup,

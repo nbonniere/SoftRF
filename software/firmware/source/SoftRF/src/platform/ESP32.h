@@ -1,6 +1,6 @@
 /*
  * Platform_ESP32.h
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@
 #define EEPROM_commit()         EEPROM.commit()
 
 #define isValidFix()            isValidGNSSFix()
+
+#define LED_STATE_ON            HIGH  // State when LED is litted
 
 /* Adafruit_NeoPixel still has "flickering" issue of ESP32 caused by 1 ms scheduler */
 //#define USE_ADAFRUIT_NEO_LIBRARY
@@ -81,7 +83,6 @@ extern Adafruit_NeoPixel strip;
 #define SOC_GPIO_PIN_GNSS_RX    23
 #define SOC_GPIO_PIN_GNSS_TX    12
 #define SOC_GPIO_PIN_LED        25
-#define SOC_GPIO_PIN_BUZZER     13
 #define SOC_GPIO_PIN_BATTERY    36
 
 #define SOC_GPIO_PIN_STATUS   (hw_info.model != SOFTRF_MODEL_PRIME_MK2 ?\
@@ -106,6 +107,9 @@ extern Adafruit_NeoPixel strip;
                                 SOC_UNUSED_PIN :                        \
                                 SOC_GPIO_PIN_TBEAM_V08_PPS)
 #endif /* TBEAM_V07_PPS_WIRE_TO_GPIO37 */
+
+#define SOC_GPIO_PIN_BUZZER   (hw_info.model != SOFTRF_MODEL_PRIME_MK2 ?\
+                                13 : SOC_UNUSED_PIN)
 
 /* SPI (does match Heltec & TTGO LoRa32 pins mapping) */
 #define SOC_GPIO_PIN_MOSI       27
@@ -232,19 +236,27 @@ struct rst_info {
 #define NMEA_TCP_SERVICE
 #define USE_NMEALIB
 #define USE_OLED
+<<<<<<< HEAD
 #define USE_OLED_TBEAM_AXP  /* to avoid using same I2C bus as AXP chip */
+=======
+//#define EXCLUDE_OLED_BARO_PAGE
+>>>>>>> abc8bc9e875f2182fc358a31860198d601af4670
 #define USE_TFT
-//#define USE_NMEA_CFG
+#define USE_NMEA_CFG
 #define USE_BASICMAC
+
+/* Experimental */
+//#define USE_BLE_MIDI
 
 //#define EXCLUDE_GNSS_UBLOX    /* Neo-6/7/8 */
 #define ENABLE_UBLOX_RFS        /* revert factory settings (when necessary)  */
-//#define EXCLUDE_GNSS_GOKE     /* 'Air530' GK9501 GPS/GLO/BDS (GAL inop.)   */
+#define EXCLUDE_GNSS_GOKE       /* 'Air530' GK9501 GPS/GLO/BDS (GAL inop.)   */
 //#define EXCLUDE_GNSS_AT65     /* 'fake Neo-6/8' on some 2018 T-Beam boards */
 #define EXCLUDE_GNSS_SONY
 #define EXCLUDE_GNSS_MTK
 
 #define EXCLUDE_CC13XX
+#define EXCLUDE_LK8EX1
 
 #define POWER_SAVING_WIFI_TIMEOUT 600000UL /* 10 minutes */
 

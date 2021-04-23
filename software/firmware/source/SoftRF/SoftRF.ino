@@ -1,6 +1,6 @@
 /*
  * SoftRF(.ino) firmware
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * Author: Linar Yusupov, linar.r.yusupov@gmail.com
  *
@@ -45,6 +45,16 @@
  *   Basic MAC library is developed by Michael Kuyper
  *   LowPowerLab SPIFlash library is maintained by Felix Rusu
  *   Arduino core for ASR650x is developed by Aaron Lee (HelTec Automation)
+ *   ADXL362 library is developed by Anne Mahaffey
+ *   Arduino Core for nRF52 and TinyUSB library are developed by Ha Thach
+ *   Arduino-NVM library is developed by Frank Holtz
+ *   AceButton library is developed by Brian Park
+ *   GxEPD2 library is developed by Jean-Marc Zingg
+ *   Adafruit GFX library is developed by Adafruit Industries
+ *   U8g2 fonts for Adafruit GFX are developed by Oliver Kraus
+ *   Adafruit SPIFlash and SleepyDog libraries are developed by Adafruit Industries
+ *   SdFat library is developed by Bill Greiman
+ *   Arduino MIDI library is developed by Francois Best (Forty Seven Effects)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -213,6 +223,7 @@ void setup()
     LED_test();
   }
 
+  Sound_setup();
   SoC->Sound_test(resetInfo->reason);
 
   switch (settings->mode)
@@ -305,6 +316,13 @@ void loop()
 
   SoC->Button_loop();
 
+#if defined(TAKE_CARE_OF_MILLIS_ROLLOVER)
+  /* restart the device when uptime is more than 47 days */
+  if (millis() > (47 * 24 * 3600 * 1000UL)) {
+    SoC->reset();
+  }
+#endif /* TAKE_CARE_OF_MILLIS_ROLLOVER */
+
   yield();
 }
 
@@ -313,6 +331,8 @@ void shutdown(int reason)
   SoC->WDT_fini();
 
   SoC->swSer_enableRx(false);
+
+  Sound_fini();
 
   NMEA_fini();
 
@@ -405,11 +425,13 @@ void normal()
     LEDTimeMarker = millis();
   }
 
+  Sound_loop();
+
   if (isTimeToExport()) {
     NMEA_Export();
+    GDL90_Export();
 
     if (isValidFix()) {
-      GDL90_Export();
       D1090_Export();
     }
     ExportTimeMarker = millis();
@@ -419,7 +441,6 @@ void normal()
   NMEA_loop();
 
   ClearExpired();
-
 }
 
 #if !defined(EXCLUDE_MAVLINK)
@@ -603,6 +624,8 @@ void txrx_test()
 #if DEBUG_TIMING
   led_end_ms = millis();
 #endif
+
+  Sound_loop();
 
 #if DEBUG_TIMING
   export_start_ms = millis();

@@ -1,6 +1,6 @@
 /*
  * EPDHelper.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,20 +45,42 @@ const char EPD_SkyView_text9[] = "(C) 2019-2021";
 unsigned long EPDTimeMarker = 0;
 bool EPD_display_frontpage = false;
 
-static int  EPD_view_mode = 0;
+static int EPD_view_mode = 0;
 static unsigned long EPD_anti_ghosting_timer = 0;
 
-void EPD_Clear_Screen()
-{
-  display->setFullWindow();
+volatile int EPD_task_command = EPD_UPDATE_NONE;
 
-  display->firstPage();
-  do
-  {
-    display->fillScreen(GxEPD_WHITE);
-  }
-  while (display->nextPage());
-}
+#if defined(BUILD_SKYVIEW_HD)
+
+#include "epd_driver.h"
+#include "opensans24b.h"
+#include "firasans.h"
+
+enum alignment
+{
+    LEFT,
+    RIGHT,
+    CENTER
+};
+
+uint8_t *frameBuffer = NULL;
+
+GFXfont_EPDiy currentFont;
+
+void fillCircle(int x, int y, int r, uint8_t color);
+void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
+void drawCircle(int x0, int y0, int r, uint8_t color);
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                  int16_t x2, int16_t y2, uint16_t color);
+void drawPixel(int x, int y, uint8_t color);
+void setFont(GFXfont_EPDiy const &font);
+void drawString(int x, int y, const char *text, alignment align);
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
+
+#endif /* BUILD_SKYVIEW_HD */
 
 byte EPD_setup(bool splash_screen)
 {
@@ -78,65 +100,111 @@ byte EPD_setup(bool splash_screen)
 
   SoC->EPD_setup();
 
-  if (!display)
-    return rval;
+  if (display) {
 
-  display->init();
+    display->init();
 
-  display->setRotation(0);
-  display->setTextColor(GxEPD_BLACK);
-
-  // first update should be full refresh
-  if (splash_screen) {
-    display->setFont(&FreeMonoBold24pt7b);
-
-    display->getTextBounds(EPD_SkyView_text1, 0, 0, &tbx1, &tby1, &tbw1, &tbh1);
-    display->getTextBounds(EPD_SkyView_text2, 0, 0, &tbx2, &tby2, &tbw2, &tbh2);
+    display->setRotation(0);
+    display->setTextColor(GxEPD_BLACK);
     display->setFullWindow();
-    display->firstPage();
-    do
-    {
-      display->fillScreen(GxEPD_WHITE);
-      uint16_t x = (display->width() - tbw1) / 2;
-      uint16_t y = (display->height() + tbh1) / 2;
-      display->setCursor(x - (tbw1 / 3), y - tbh1);
-      display->print(EPD_SkyView_text1);
-      x = (display->width() - tbw2) / 2;
-      y = (display->height() + tbh2) / 2;
-      display->setCursor(x + (tbw2 / 7), y - (tbh2 - tbh1) );
-      display->print(EPD_SkyView_text2);
+    display->fillScreen(GxEPD_WHITE);
 
-      display->setFont(&FreeMonoOblique9pt7b);
-      display->getTextBounds(EPD_SkyView_text3, 0, 0, &tbx3, &tby3, &tbw3, &tbh3);
-      x = (display->width() - tbw3) / 2;
-      y = (display->height() + tbh3) * 3 / 4;
-      display->setCursor(x, y);
-      display->print(EPD_SkyView_text3);
-      display->setFont(&FreeMonoBoldOblique9pt7b);
-      display->getTextBounds(EPD_SkyView_text4, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
-      x = (display->width() - tbw4) / 2;
-      y += tbh3;
-      y += 3;
-      display->setCursor(x, y);
-      display->print(EPD_SkyView_text4);
+    // first update should be full refresh
+    if (splash_screen) {
+      display->setFont(&FreeMonoBold24pt7b);
 
-      if (hw_info.revision == HW_REV_T5S_1_9 || hw_info.revision == HW_REV_T5S_2_8) {
-        display->getTextBounds(EPD_SkyView_text5, 0, 0, &tbx5, &tby5, &tbw5, &tbh5);
-        x = (display->width() - tbw5) / 2;
-        y += tbh4;
+      display->getTextBounds(EPD_SkyView_text1, 0, 0, &tbx1, &tby1, &tbw1, &tbh1);
+      display->getTextBounds(EPD_SkyView_text2, 0, 0, &tbx2, &tby2, &tbw2, &tbh2);
+
+      {
+        uint16_t x = (display->width() - tbw1) / 2;
+        uint16_t y = (display->height() + tbh1) / 2;
+        display->setCursor(x - (tbw1 / 3), y - tbh1);
+        display->print(EPD_SkyView_text1);
+        x = (display->width() - tbw2) / 2;
+        y = (display->height() + tbh2) / 2;
+        display->setCursor(x + (tbw2 / 7), y - (tbh2 - tbh1) );
+        display->print(EPD_SkyView_text2);
+
+        display->setFont(&FreeMonoOblique9pt7b);
+        display->getTextBounds(EPD_SkyView_text3, 0, 0, &tbx3, &tby3, &tbw3, &tbh3);
+        x = (display->width() - tbw3) / 2;
+        y = (display->height() + tbh3) * 3 / 4;
+        display->setCursor(x, y);
+        display->print(EPD_SkyView_text3);
+        display->setFont(&FreeMonoBoldOblique9pt7b);
+        display->getTextBounds(EPD_SkyView_text4, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
+        x = (display->width() - tbw4) / 2;
+        y += tbh3;
         y += 3;
         display->setCursor(x, y);
-        display->print(EPD_SkyView_text5);
+        display->print(EPD_SkyView_text4);
+
+        if (hw_info.revision == HW_REV_T5S_1_9 || hw_info.revision == HW_REV_T5S_2_8) {
+          display->getTextBounds(EPD_SkyView_text5, 0, 0, &tbx5, &tby5, &tbw5, &tbh5);
+          x = (display->width() - tbw5) / 2;
+          y += tbh4;
+          y += 3;
+          display->setCursor(x, y);
+          display->print(EPD_SkyView_text5);
+        }
       }
     }
-    while (display->nextPage());
-  } else {
-    EPD_Clear_Screen();
-  }
 
-  if (display->epd2.probe()) {
-    rval = DISPLAY_EPD_2_7;
+    display->display(false);
+
+    if (display->epd2.probe()) {
+      rval = DISPLAY_EPD_2_7;
+    }
   }
+#if defined(BUILD_SKYVIEW_HD)
+  else
+  {
+    char line[64];
+
+    epd_init();
+
+    epd_poweron();
+    epd_clear();
+
+    int cursor_x = 300;
+    int cursor_y = 150;
+
+    setFont(OpenSans24B);
+    strncat(line, EPD_SkyView_text6, sizeof(line));
+    strncat(line, " HD", sizeof(line));
+    drawString(cursor_x, cursor_y, line, LEFT);
+
+    cursor_x = 100;
+    cursor_y = 300;
+
+    setFont(FiraSans);
+
+    memset(line, 0, sizeof(line));
+    strncat(line, EPD_SkyView_text3, sizeof(line));
+    strncat(line, " ", sizeof(line));
+    strncat(line, EPD_SkyView_text4, sizeof(line));
+    strncat(line, " ", sizeof(line));
+    strncat(line, EPD_SkyView_text5, sizeof(line));
+    drawString(cursor_x, cursor_y, line, LEFT);
+
+    cursor_x = 100;
+    cursor_y += 50;
+
+    memset(line, 0, sizeof(line));
+    strncat(line, EPD_SkyView_text7, sizeof(line));
+    strncat(line, " ", sizeof(line));
+    strncat(line, EPD_SkyView_text8, sizeof(line));
+    strncat(line, " ", sizeof(line));
+    strncat(line, EPD_SkyView_text9, sizeof(line));
+
+    drawString(cursor_x, cursor_y, line, LEFT);
+
+    epd_poweroff();
+
+    rval = DISPLAY_EPD_4_7;
+  }
+#endif /* BUILD_SKYVIEW_HD */
 
   EPD_radar_setup();
   EPD_text_setup();
@@ -150,18 +218,6 @@ byte EPD_setup(bool splash_screen)
 void EPD_loop()
 {
   if (hw_info.display == DISPLAY_EPD_2_7) {
-
-    switch (EPD_view_mode)
-    {
-    case VIEW_MODE_RADAR:
-      EPD_radar_loop();
-      break;
-    case VIEW_MODE_TEXT:
-      EPD_text_loop();
-      break;
-    default:
-      break;
-    }
 
     switch (settings->aghost)
     {
@@ -194,18 +250,38 @@ void EPD_loop()
     default:
       break;
     }
+
+    if (!EPD_display_frontpage) {
+      if (SoC->EPD_is_ready()) {
+        display->fillScreen(GxEPD_WHITE);
+        SoC->EPD_update(EPD_UPDATE_SLOW);
+
+        EPD_display_frontpage = true;
+      }
+    } else {
+      switch (EPD_view_mode)
+      {
+      case VIEW_MODE_RADAR:
+        EPD_radar_loop();
+        break;
+      case VIEW_MODE_TEXT:
+        EPD_text_loop();
+        break;
+      default:
+        break;
+      }
+    }
   }
 }
 
 void EPD_fini(const char *msg)
 {
+  SoC->EPD_fini();
+
   if (hw_info.display == DISPLAY_EPD_2_7) {
     int16_t  tbx, tby;
     uint16_t tbw, tbh;
 
-    display->setFullWindow();
-    display->firstPage();
-    do
     {
       display->fillScreen(GxEPD_WHITE);
       uint16_t x = (display->width()  - 128) / 2;
@@ -246,7 +322,7 @@ void EPD_fini(const char *msg)
       display->setCursor(x, y);
       display->print(EPD_SkyView_text9);
     }
-    while (display->nextPage());
+    display->display(false);
 
     display->hibernate();
   }
@@ -316,3 +392,134 @@ void EPD_Message(const char *msg1, const char *msg2)
     }
   }
 }
+
+void EPD_Update_Sync(int cmd)
+{
+  switch (cmd)
+  {
+  case EPD_UPDATE_SLOW:
+    display->display(false);
+    EPD_task_command = EPD_UPDATE_NONE;
+    break;
+  case EPD_UPDATE_FAST:
+    display->display(true);
+    yield();
+    display->powerOff();
+    EPD_task_command = EPD_UPDATE_NONE;
+    break;
+  case EPD_UPDATE_NONE:
+  default:
+    break;
+  }
+}
+
+void EPD_Task( void * pvParameters )
+{
+  for( ;; )
+  {
+    if (hw_info.display == DISPLAY_EPD_2_7) {
+      EPD_Update_Sync(EPD_task_command);
+    }
+    yield();
+  }
+}
+
+#if defined(BUILD_SKYVIEW_HD)
+
+//#define GxEPD_WHITE 0xFF
+//#define GxEPD_BLACK 0x00
+
+void fillCircle(int x, int y, int r, uint8_t color)
+{
+    epd_fill_circle(x, y, r, color, frameBuffer);
+}
+
+void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color)
+{
+    epd_draw_hline(x0, y0, length, color, frameBuffer);
+}
+
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+{
+    epd_write_line(x0, y0, x1, y1, color, frameBuffer);
+}
+
+void drawCircle(int x0, int y0, int r, uint8_t color)
+{
+    epd_draw_circle(x0, y0, r, color, frameBuffer);
+}
+
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+{
+    epd_draw_rect(x, y, w, h, color, frameBuffer);
+}
+
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+{
+    epd_fill_rect(x, y, w, h, color, frameBuffer);
+}
+
+void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
+{
+    epd_fill_triangle(x0, y0, x1, y1, x2, y2, color, frameBuffer);
+}
+
+void drawPixel(int x, int y, uint8_t color)
+{
+    epd_draw_pixel(x, y, color, frameBuffer);
+}
+
+void setFont(GFXfont_EPDiy const &font)
+{
+    currentFont = font;
+}
+
+void drawString(int x, int y, const char *text, alignment align)
+{
+    int x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
+    int w, h;
+    int xx = x, yy = y;
+    get_text_bounds(&currentFont, text, &xx, &yy, &x1, &y1, &w, &h, NULL);
+
+    if (align == RIGHT)
+        x = x - w;
+    if (align == CENTER)
+        x = x - w / 2;
+
+    int cursor_y = y + h;
+    write_string(&currentFont, text, &x, &cursor_y, frameBuffer);
+}
+
+#if 0
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align)
+{
+    char *data = const_cast<char *>(text.c_str());
+    int x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
+    int w, h;
+    int xx = x, yy = y;
+
+    get_text_bounds(&currentFont, data, &xx, &yy, &x1, &y1, &w, &h, NULL);
+    if (align == RIGHT)
+        x = x - w;
+    if (align == CENTER)
+        x = x - w / 2;
+
+    if (text.length() > text_width * 2)
+    {
+        setFont(OpenSans12 /*9*/);
+        text_width = 42;
+        y = y - 3;
+    }
+    write_string(&currentFont, data, &x, &y, frameBuffer);
+
+    if (text.length() > text_width)
+    {
+        y += h + 15;
+        String secondLine = text.substring(text_width);
+        secondLine.trim(); // Remove any leading spac
+        write_string(&currentFont, data, &x, &y, frameBuffer);
+    }
+}
+#endif
+
+#endif /* BUILD_SKYVIEW_HD */

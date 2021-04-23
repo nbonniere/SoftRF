@@ -1,6 +1,6 @@
 /*
  * WebHelper.cpp
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -808,6 +808,7 @@ PSTR("<html>\
   delay(3000);
   free(Input_temp);
   EEPROM_store();
+  Sound_fini();
   RF_Shutdown();
   delay(1000);
   SoC->reset();
@@ -918,6 +919,7 @@ $('form').submit(function(e){\
     server.sendHeader(String(F("Access-Control-Allow-Origin")), "*");
     server.send(200, String(F("text/plain")), (Update.hasError())?"FAIL":"OK");
 //    SoC->swSer_enableRx(true);
+    Sound_fini();
     RF_Shutdown();
     delay(1000);
     SoC->reset();

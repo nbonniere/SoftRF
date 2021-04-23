@@ -1,6 +1,6 @@
 /*
  * View_Radar_EPD.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,12 +51,11 @@ static void EPD_Draw_NavBoxes()
   uint16_t top_navboxes_w = navbox1.width + navbox2.width;
   uint16_t top_navboxes_h = maxof2(navbox1.height, navbox2.height);
 
-  display->setPartialWindow(top_navboxes_x, top_navboxes_y,
-                            top_navboxes_w, top_navboxes_h);
-
-  display->firstPage();
-  do
   {
+    display->fillRect(top_navboxes_x, top_navboxes_y,
+                      top_navboxes_w, top_navboxes_h,
+                      GxEPD_WHITE);
+
     display->drawRoundRect( navbox1.x + 1, navbox1.y + 1,
                             navbox1.width - 2, navbox1.height - 2,
                             4, GxEPD_BLACK);
@@ -86,25 +85,17 @@ static void EPD_Draw_NavBoxes()
     display->print(navbox2.value == PROTOCOL_NMEA  ? "NMEA" :
                    navbox2.value == PROTOCOL_GDL90 ? " GDL" : " UNK" );
   }
-  while (display->nextPage());
-
-  yield();
-
-  /* Poll input source */
-  Input_loop();
 
   uint16_t bottom_navboxes_x = navbox3.x;
   uint16_t bottom_navboxes_y = navbox3.y;
   uint16_t bottom_navboxes_w = navbox3.width + navbox4.width;
   uint16_t bottom_navboxes_h = maxof2(navbox3.height, navbox4.height);
 
-
-  display->setPartialWindow(bottom_navboxes_x, bottom_navboxes_y,
-                            bottom_navboxes_w, bottom_navboxes_h);
-
-  display->firstPage();
-  do
   {
+    display->fillRect(bottom_navboxes_x, bottom_navboxes_y,
+                      bottom_navboxes_w, bottom_navboxes_h,
+                      GxEPD_WHITE);
+
     display->drawRoundRect( navbox3.x + 1, navbox3.y + 1,
                             navbox3.width - 2, navbox3.height - 2,
                             4, GxEPD_BLACK);
@@ -143,9 +134,6 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox4.x + 15, navbox4.y + 32);
     display->print((float) navbox4.value / 10);
   }
-  while (display->nextPage());
-
-  display->powerOff();
 }
 
 void EPD_radar_Draw_Message(const char *msg1, const char *msg2)
@@ -159,14 +147,10 @@ void EPD_radar_Draw_Message(const char *msg1, const char *msg2)
     uint16_t radar_y = (display->height() - display->width()) / 2;
     uint16_t radar_w = display->width();
 
-    display->setPartialWindow(radar_x, radar_y, radar_w, radar_w);
-
     display->setFont(&FreeMonoBold18pt7b);
 
-    display->firstPage();
-    do
     {
-      display->fillScreen(GxEPD_WHITE);
+      display->fillRect(radar_x, radar_y, radar_w, radar_w, GxEPD_WHITE);
 
       if (msg2 == NULL) {
         display->getTextBounds(msg1, 0, 0, &tbx, &tby, &tbw, &tbh);
@@ -188,9 +172,6 @@ void EPD_radar_Draw_Message(const char *msg1, const char *msg2)
         display->print(msg2);
       }
     }
-    while (display->nextPage());
-
-    display->powerOff();
   }
 }
 
@@ -212,7 +193,7 @@ static void EPD_Draw_Radar()
   uint16_t radar_y = (display->height() - display->width()) / 2;
   uint16_t radar_w = display->width();
 
-  display->setPartialWindow(radar_x, radar_y, radar_w, radar_w);
+  display->fillRect(radar_x, radar_y, radar_w, radar_w, GxEPD_WHITE);
 
   uint16_t radar_center_x = radar_w / 2;
   uint16_t radar_center_y = radar_y + radar_w / 2;
@@ -254,14 +235,12 @@ static void EPD_Draw_Radar()
     }
   }
 
-  display->firstPage();
-  do
   {
     for (int i=0; i < MAX_TRACKING_OBJECTS; i++) {
       if (Container[i].ID && (now() - Container[i].timestamp) <= EPD_EXPIRATION_TIME) {
 
-        int16_t rel_x;
-        int16_t rel_y;
+        float rel_x;
+        float rel_y;
         float distance;
         float bearing;
 
@@ -296,18 +275,17 @@ static void EPD_Draw_Radar()
 
           bearing -= ThisAircraft.Track;
 
-          rel_x = constrain(distance * sin(radians(bearing)),
-                                       -32768, 32767);
-          rel_y = constrain(distance * cos(radians(bearing)),
-                                       -32768, 32767);
+          rel_x = distance * sin(radians(bearing));
+          rel_y = distance * cos(radians(bearing));
+
           break;
         default:
           /* TBD */
           break;
         }
 
-        int16_t x = ((int32_t) rel_x * (int32_t) radius) / divider;
-        int16_t y = ((int32_t) rel_y * (int32_t) radius) / divider;
+        int16_t x = constrain((rel_x * radius) / divider, -32768, 32767);
+        int16_t y = constrain((rel_y * radius) / divider, -32768, 32767);
 
         if        (Container[i].RelativeVertical >   EPD_RADAR_V_THRESHOLD) {
           if (isTeam) {
@@ -435,107 +413,7 @@ static void EPD_Draw_Radar()
       /* TBD */
       break;
     }
-
   }
-  while (display->nextPage());
-
-  display->powerOff();
-}
-
-static void EPD_Update_NavBoxes()
-{
-  int16_t  tbx, tby;
-  uint16_t tbw, tbh;
-
-  if (navbox1.value != navbox1.prev_value) {
-
-    display->setFont(&FreeMonoBold18pt7b);
-    display->getTextBounds("00", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display->setPartialWindow(navbox1.x + 40, navbox1.y + 33 - tbh,
-                              tbw, tbh + 1);
-    display->firstPage();
-    do
-    {
-      display->fillRect(navbox1.x + 40, navbox1.y + 33 - tbh,
-                        tbw, tbh + 1, GxEPD_WHITE);
-      display->setCursor(navbox1.x + 40, navbox1.y + 32);
-      display->print(navbox1.value);
-    }
-    while (display->nextPage());
-
-    navbox1.prev_value = navbox1.value;
-  }
-
-  if (navbox2.value != navbox2.prev_value) {
-
-    display->setFont(&FreeSerifBold12pt7b);
-    display->getTextBounds("NMEA", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display->setPartialWindow(navbox2.x + 8, navbox2.y + 31 - tbh,
-                              tbw, tbh + 1);
-    display->firstPage();
-    do
-    {
-      display->fillRect(navbox2.x + 8, navbox2.y + 31 - tbh,
-                        tbw, tbh + 1, GxEPD_WHITE);
-      display->setCursor(navbox2.x + 8, navbox2.y + 30);
-      display->print(navbox2.value == PROTOCOL_NMEA  ? "NMEA" :
-                     navbox2.value == PROTOCOL_GDL90 ? " GDL" : " UNK" );
-    }
-    while (display->nextPage());
-
-    navbox2.prev_value = navbox2.value;
-  }
-
-  if (navbox3.value != navbox3.prev_value) {
-
-    display->setFont(&FreeSerifBold12pt7b);
-    display->getTextBounds("10 KM", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display->setPartialWindow(navbox3.x + 11, navbox3.y + 31 - tbh,
-                              tbw, tbh + 1);
-    display->firstPage();
-    do
-    {
-      display->fillRect(navbox3.x + 10, navbox3.y + 31 - tbh,
-                        tbw, tbh + 1, GxEPD_WHITE);
-      display->setCursor(navbox3.x + 10, navbox3.y + 30);
-
-      if (settings->units == UNITS_METRIC || settings->units == UNITS_MIXED) {
-        display->print(navbox3.value == ZOOM_LOWEST ? "20 KM" :
-                       navbox3.value == ZOOM_LOW    ? "10 KM" :
-                       navbox3.value == ZOOM_MEDIUM ? " 4 KM" :
-                       navbox3.value == ZOOM_HIGH   ? " 2 KM" : "");
-      } else {
-        display->print(navbox3.value == ZOOM_LOWEST ? "10 NM" :
-                       navbox3.value == ZOOM_LOW    ? " 5 NM" :
-                       navbox3.value == ZOOM_MEDIUM ? " 2 NM" :
-                       navbox3.value == ZOOM_HIGH   ? " 1 NM" : "");
-      }
-    }
-    while (display->nextPage());
-
-    navbox3.prev_value = navbox3.value;
-  }
-
-  if (navbox4.value != navbox4.prev_value) {
-
-    display->setFont(&FreeMonoBold18pt7b);
-    display->getTextBounds("0.0", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display->setPartialWindow(navbox4.x + 16, navbox4.y + 33 - tbh,
-                              tbw, tbh + 1);
-    display->firstPage();
-    do
-    {
-      display->fillRect (navbox4.x + 15, navbox4.y + 33 - tbh,
-                         tbw, tbh + 1, GxEPD_WHITE);
-      display->setCursor(navbox4.x + 15, navbox4.y + 32);
-      display->print((float) navbox4.value / 10);
-    }
-    while (display->nextPage());
-
-    navbox4.prev_value = navbox4.value;
-  }
-
-  display->powerOff();
 }
 
 void EPD_radar_setup()
@@ -543,16 +421,24 @@ void EPD_radar_setup()
   EPD_zoom = settings->zoom;
 
   uint16_t radar_x = 0;
-  uint16_t radar_y = (display->height() - display->width()) / 2;
-  uint16_t radar_w = display->width();
+  uint16_t radar_y = 0;
+  uint16_t radar_w = 0;
+
+  if (display) {
+    radar_y = (display->height() - display->width()) / 2;
+    radar_w = display->width();
+  }
 
   memcpy(navbox1.title, NAVBOX1_TITLE, strlen(NAVBOX1_TITLE));
   navbox1.x = 0;
   navbox1.y = 0;
-  navbox1.width  = display->width() / 2;
-  navbox1.height = (display->height() - display->width()) / 2;
+
+  if (display) {
+    navbox1.width  = display->width() / 2;
+    navbox1.height = (display->height() - display->width()) / 2;
+  }
+
   navbox1.value      = 0;
-  navbox1.prev_value = navbox1.value;
   navbox1.timestamp  = millis();
 
   memcpy(navbox2.title, NAVBOX2_TITLE, strlen(NAVBOX2_TITLE));
@@ -561,7 +447,6 @@ void EPD_radar_setup()
   navbox2.width  = navbox1.width;
   navbox2.height = navbox1.height;
   navbox2.value      = PROTOCOL_NONE;
-  navbox2.prev_value = navbox2.value;
   navbox2.timestamp  = millis();
 
   memcpy(navbox3.title, NAVBOX3_TITLE, strlen(NAVBOX3_TITLE));
@@ -570,7 +455,6 @@ void EPD_radar_setup()
   navbox3.width  = navbox1.width;
   navbox3.height = navbox1.height;
   navbox3.value      = EPD_zoom;
-  navbox3.prev_value = navbox3.value;
   navbox3.timestamp  = millis();
 
   memcpy(navbox4.title, NAVBOX4_TITLE, strlen(NAVBOX4_TITLE));
@@ -579,72 +463,55 @@ void EPD_radar_setup()
   navbox4.width  = navbox3.width;
   navbox4.height = navbox3.height;
   navbox4.value      = (int) (Battery_voltage() * 10.0);
-  navbox4.prev_value = navbox4.value;
   navbox4.timestamp  = millis();
 }
 
 void EPD_radar_loop()
 {
-  if (!EPD_display_frontpage) {
+  if (isTimeToDisplay() && SoC->EPD_is_ready()) {
 
-    EPD_Clear_Screen();
+    bool hasData = settings->protocol == PROTOCOL_NMEA  ? NMEA_isConnected()  :
+                   settings->protocol == PROTOCOL_GDL90 ? GDL90_isConnected() :
+                   false;
 
-    yield();
+    if (hasData) {
 
-    /* Poll input source(s) */
-    Input_loop();
+      bool hasFix = settings->protocol == PROTOCOL_NMEA  ? isValidGNSSFix()   :
+                    settings->protocol == PROTOCOL_GDL90 ? GDL90_hasOwnShip() :
+                    false;
+
+      if (hasFix) {
+        EPD_Draw_Radar();
+      } else {
+        EPD_radar_Draw_Message(NO_FIX_TEXT, NULL);
+      }
+    } else {
+      EPD_radar_Draw_Message(NO_DATA_TEXT, NULL);
+    }
+
+    navbox1.value = Traffic_Count();
+
+    switch (settings->protocol)
+    {
+    case PROTOCOL_GDL90:
+      navbox2.value = GDL90_hasHeartBeat() ?
+                      PROTOCOL_GDL90 : PROTOCOL_NONE;
+      break;
+    case PROTOCOL_NMEA:
+    default:
+      navbox2.value = (NMEA_hasFLARM() || NMEA_hasGNSS()) ?
+                      PROTOCOL_NMEA  : PROTOCOL_NONE;
+      break;
+    }
+
+    navbox3.value = EPD_zoom;
+    navbox4.value = (int) (Battery_voltage() * 10.0);
 
     EPD_Draw_NavBoxes();
 
-    EPD_display_frontpage = true;
+    SoC->EPD_update(EPD_UPDATE_FAST);
 
-  } else {
-
-    if (isTimeToDisplay()) {
-
-      bool hasData = settings->protocol == PROTOCOL_NMEA  ? NMEA_isConnected()  :
-                     settings->protocol == PROTOCOL_GDL90 ? GDL90_isConnected() :
-                     false;
-
-      if (hasData) {
-
-        bool hasFix = settings->protocol == PROTOCOL_NMEA  ? isValidGNSSFix()   :
-                      settings->protocol == PROTOCOL_GDL90 ? GDL90_hasOwnShip() :
-                      false;
-
-        if (hasFix) {
-          EPD_Draw_Radar();
-        } else {
-          EPD_radar_Draw_Message(NO_FIX_TEXT, NULL);
-        }
-      } else {
-        EPD_radar_Draw_Message(NO_DATA_TEXT, NULL);
-      }
-
-      yield();
-
-      navbox1.value = Traffic_Count();
-
-      switch (settings->protocol)
-      {
-      case PROTOCOL_GDL90:
-        navbox2.value = GDL90_hasHeartBeat() ?
-                        PROTOCOL_GDL90 : PROTOCOL_NONE;
-        break;
-      case PROTOCOL_NMEA:
-      default:
-        navbox2.value = (NMEA_hasFLARM() || NMEA_hasGNSS()) ?
-                        PROTOCOL_NMEA  : PROTOCOL_NONE;
-        break;
-      }
-
-      navbox3.value = EPD_zoom;
-      navbox4.value = (int) (Battery_voltage() * 10.0);
-
-      EPD_Update_NavBoxes();
-
-      EPDTimeMarker = millis();
-    }
+    EPDTimeMarker = millis();
   }
 }
 

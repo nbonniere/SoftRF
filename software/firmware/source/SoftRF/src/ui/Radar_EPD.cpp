@@ -1,6 +1,6 @@
 /*
  * View_Radar_EPD.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include <TimeLib.h>
 
 #include "../TrafficHelper.h"
-#include "../driver/Battery.h"
 #include "../driver/EEPROM.h"
 #include "../protocol/data/NMEA.h"
 #include "../protocol/data/GDL90.h"
@@ -108,7 +107,6 @@ static void EPD_Draw_Radar()
       }
     }
 
-    display->setPartialWindow(radar_x, radar_y, radar_w, radar_w);
     display->fillScreen(GxEPD_WHITE);
 
     {
@@ -275,27 +273,47 @@ static void EPD_Draw_Radar()
       }
 
       display->setFont(&FreeMonoBold12pt7b);
-      display->getTextBounds("00 NM", 0, 0, &tbx, &tby, &tbw, &tbh);
+      display->getTextBounds("0", 0, 0, &tbx, &tby, &tbw, &tbh);
 
-      x = radar_x;
+      x = radar_x + tbw / 2;
+      y = radar_y + radar_w - tbh;
+      display->setCursor(x, y);
+
+      display->print(Traffic_Count());
+
+      display->setFont(&Picopixel);
+      display->getTextBounds("ACFTS", 0, 0, &tbx, &tby, &tbw, &tbh);
+      y += tbh; y += tbh;
+      display->setCursor(x, y);
+      display->print("ACFTS");
+
+      display->setFont(&FreeMonoBold12pt7b);
+      display->getTextBounds("00 ", 0, 0, &tbx, &tby, &tbw, &tbh);
+
+      x = radar_x + radar_w - tbw;
       y = radar_y + radar_w - tbh;
       display->setCursor(x, y);
 
       if (ui->units == UNITS_METRIC || ui->units == UNITS_MIXED) {
         display->print(EPD_zoom == ZOOM_LOWEST ? "20" :
                        EPD_zoom == ZOOM_LOW    ? "10" :
-                       EPD_zoom == ZOOM_MEDIUM ? " 4" :
-                       EPD_zoom == ZOOM_HIGH   ? " 2" : "");
-        display->setFont(&Picopixel);
-        display->print(" KM");
+                       EPD_zoom == ZOOM_MEDIUM ? "4 " :
+                       EPD_zoom == ZOOM_HIGH   ? "2 " : "");
       } else {
         display->print(EPD_zoom == ZOOM_LOWEST ? "10" :
-                       EPD_zoom == ZOOM_LOW    ? " 5" :
-                       EPD_zoom == ZOOM_MEDIUM ? " 2" :
-                       EPD_zoom == ZOOM_HIGH   ? " 1" : "");
-        display->setFont(&Picopixel);
-        display->print(" NM");
+                       EPD_zoom == ZOOM_LOW    ? "5 " :
+                       EPD_zoom == ZOOM_MEDIUM ? "2 " :
+                       EPD_zoom == ZOOM_HIGH   ? "1 " : "");
       }
+
+      display->setFont(&Picopixel);
+      display->getTextBounds("KM", 0, 0, &tbx, &tby, &tbw, &tbh);
+      x += tbw;
+      y += tbh; y += tbh;
+      display->setCursor(x, y);
+
+      display->print(ui->units == UNITS_METRIC || ui->units == UNITS_MIXED ?
+                     "KM" : "NM");
     }
 
     /* a signal to background EPD update task */

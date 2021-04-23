@@ -1,6 +1,6 @@
 /*
  * Platform_CC13XX.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "../driver/LED.h"
 #include "../driver/Sound.h"
 #include "../driver/OLED.h"
+#include "../driver/Battery.h"
 #include "../protocol/data/NMEA.h"
 #include "../protocol/data/GDL90.h"
 #include "../protocol/data/D1090.h"
@@ -342,16 +343,6 @@ static void CC13XX_setup()
 
 static void CC13XX_post_init()
 {
-  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
-    settings->nmea_out = NMEA_UART;
-  }
-  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
-    settings->gdl90 = GDL90_UART;
-  }
-  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
-    settings->d1090 = D1090_UART;
-  }
-
 #if defined(USE_OLED)
   OLED_info1();
 #endif /* USE_OLED */
@@ -428,12 +419,7 @@ static uint32_t CC13XX_getChipId()
   uint32_t id = (uint32_t) ieeeAddr[7]        | ((uint32_t) ieeeAddr[6] << 8) | \
                ((uint32_t) ieeeAddr[5] << 16) | ((uint32_t) ieeeAddr[4] << 24);
 
-  /* remap address to avoid overlapping with congested FLARM range */
-  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
-    id += 0x100000;
-  }
-
-  return id;
+  return DevID_Mapper(id);
 }
 
 static void* CC13XX_getResetInfoPtr()
@@ -480,7 +466,18 @@ static long CC13XX_random(long howsmall, long howBig)
 
 static void CC13XX_Sound_test(int var)
 {
+  /* TBD */
+}
 
+static void CC13XX_Sound_tone(int hz, uint8_t volume)
+{
+  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && volume != BUZZER_OFF) {
+    if (hz > 0) {
+      tone(SOC_GPIO_PIN_BUZZER, hz, ALARM_TONE_MS);
+    } else {
+      noTone(SOC_GPIO_PIN_BUZZER);
+    }
+  }
 }
 
 static void CC13XX_WiFi_set_param(int ndx, int value)
@@ -499,6 +496,19 @@ static bool CC13XX_EEPROM_begin(size_t size)
   EEPROM.begin(size);
 #endif
   return true;
+}
+
+static void CC13XX_EEPROM_extension()
+{
+  if (settings->nmea_out == NMEA_USB || settings->nmea_out == NMEA_BLUETOOTH) {
+    settings->nmea_out = NMEA_UART;
+  }
+  if (settings->gdl90 == GDL90_USB || settings->gdl90 == GDL90_BLUETOOTH) {
+    settings->gdl90 = GDL90_UART;
+  }
+  if (settings->d1090 == D1090_USB || settings->d1090 == D1090_BLUETOOTH) {
+    settings->d1090 = D1090_UART;
+  }
 }
 
 static void CC13XX_SPI_begin()
@@ -550,14 +560,42 @@ static void CC13XX_Battery_setup()
   AONBatMonEnable();
 }
 
-static float CC13XX_Battery_voltage()
+static float CC13XX_Battery_param(uint8_t param)
 {
-  if (AONBatMonNewBatteryMeasureReady()) {
-    // Get the VDDS voltage
-    cc13xx_vdd = AONBatMonBatteryVoltageGet();
+  float rval;
+
+  switch (param)
+  {
+  case BATTERY_PARAM_THRESHOLD:
+    rval = hw_info.model == SOFTRF_MODEL_UNI ? BATTERY_THRESHOLD_NIZNX2 :
+                                               BATTERY_THRESHOLD_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CUTOFF:
+    rval = hw_info.model == SOFTRF_MODEL_UNI ? BATTERY_CUTOFF_NIZNX2 :
+                                               BATTERY_CUTOFF_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CHARGE:
+
+    /* TBD */
+
+    rval = 100;
+    break;
+
+  case BATTERY_PARAM_VOLTAGE:
+  default:
+
+    if (AONBatMonNewBatteryMeasureReady()) {
+      // Get the VDDS voltage
+      cc13xx_vdd = AONBatMonBatteryVoltageGet();
+    }
+
+    rval = ((cc13xx_vdd >> 8) & 0x7) + (float) (cc13xx_vdd & 0xFF) / 256.0;
+    break;
   }
 
-  return ((cc13xx_vdd >> 8) & 0x7) + (float) (cc13xx_vdd & 0xFF) / 256.0;
+  return rval;
 }
 
 void CC13XX_GNSS_PPS_Interrupt_handler() {
@@ -739,6 +777,7 @@ const SoC_ops_t CC13XX_ops = {
   CC13XX_getFreeHeap,
   CC13XX_random,
   CC13XX_Sound_test,
+  CC13XX_Sound_tone,
   NULL,
   CC13XX_WiFi_set_param,
   CC13XX_WiFi_transmit_UDP,
@@ -746,6 +785,7 @@ const SoC_ops_t CC13XX_ops = {
   NULL,
   NULL,
   CC13XX_EEPROM_begin,
+  CC13XX_EEPROM_extension,
   CC13XX_SPI_begin,
   CC13XX_swSer_begin,
   CC13XX_swSer_enableRx,
@@ -756,7 +796,7 @@ const SoC_ops_t CC13XX_ops = {
   CC13XX_Display_loop,
   CC13XX_Display_fini,
   CC13XX_Battery_setup,
-  CC13XX_Battery_voltage,
+  CC13XX_Battery_param,
   CC13XX_GNSS_PPS_Interrupt_handler,
   CC13XX_get_PPS_TimeMarker,
   CC13XX_Baro_setup,

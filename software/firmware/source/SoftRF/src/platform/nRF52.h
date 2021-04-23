@@ -1,6 +1,6 @@
 /*
  * Platform_nRF52.h
- * Copyright (C) 2020 Linar Yusupov
+ * Copyright (C) 2020-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,6 +40,10 @@
 #define snprintf_P              snprintf
 #define EEPROM_commit()         {}
 
+#if !defined(LED_STATE_ON)
+#define LED_STATE_ON            LOW  // State when LED is litted
+#endif /* LED_STATE_ON */
+
 #define SerialOutput            Serial1
 #define USBSerial               Serial
 #define swSer                   Serial2
@@ -53,6 +57,13 @@ enum rst_reason {
   REASON_SOFT_RESTART     = 4,  /* software restart ,system_restart , GPIO status won't change */
   REASON_DEEP_SLEEP_AWAKE = 5,  /* wake up from deep-sleep */
   REASON_EXT_SYS_RST      = 6   /* external system reset */
+};
+
+enum nRF52_board_id {
+  NRF52_NORDIC_PCA10059,        /* reference low power board */
+  NRF52_LILYGO_TECHO_REV_0,     /* 20-8-6 */
+  NRF52_LILYGO_TECHO_REV_1,     /* 2020-12-12 */
+  NRF52_LILYGO_TECHO_REV_2      /* 2021-3-16 */
 };
 
 struct rst_info {
@@ -73,6 +84,9 @@ struct rst_info {
 #define _PINNUM(port, pin)    ((port)*32 + (pin))
 #endif
 
+#define DFU_MAGIC_SKIP        (0x6d)
+#define BME280_ADDRESS        (0x77)
+
 /* Peripherals */
 #define SOC_GPIO_PIN_CONS_RX  _PINNUM(0, 8) // P0.08
 #define SOC_GPIO_PIN_CONS_TX  _PINNUM(0, 6) // P0.06
@@ -84,12 +98,37 @@ struct rst_info {
 
 #define SOC_GPIO_PIN_GNSS_PPS _PINNUM(1, 4) // P1.04
 #define SOC_GPIO_PIN_GNSS_WKE _PINNUM(1, 2) // P1.02
+#define SOC_GPIO_PIN_GNSS_RST _PINNUM(1, 5) // P1.05 (REV_2 only)
 
-#define SOC_GPIO_LED_GREEN    _PINNUM(0, 13) // P0.13 (Green)
-#define SOC_GPIO_LED_RED      _PINNUM(0, 14) // P0.14 (Red)
-#define SOC_GPIO_LED_BLUE     _PINNUM(0, 15) // P0.15 (Blue)
+#define SOC_GPIO_LED_TECHO_REV_0_GREEN  _PINNUM(0, 13) // P0.13 (Green)
+#define SOC_GPIO_LED_TECHO_REV_0_RED    _PINNUM(0, 14) // P0.14 (Red)
+#define SOC_GPIO_LED_TECHO_REV_0_BLUE   _PINNUM(0, 15) // P0.15 (Blue)
+#define SOC_GPIO_LED_TECHO_REV_1_GREEN  _PINNUM(0, 15)
+#define SOC_GPIO_LED_TECHO_REV_1_RED    _PINNUM(0, 13)
+#define SOC_GPIO_LED_TECHO_REV_1_BLUE   _PINNUM(0, 14)
+#define SOC_GPIO_LED_TECHO_REV_2_GREEN  _PINNUM(1,  3) // P1.03 (Green)
+#define SOC_GPIO_LED_TECHO_REV_2_RED    SOC_GPIO_LED_TECHO_REV_0_RED
+#define SOC_GPIO_LED_TECHO_REV_2_BLUE   _PINNUM(1,  1) // P1.01 (Blue)
 
-#define SOC_GPIO_PIN_STATUS   SOC_GPIO_LED_GREEN
+#define SOC_GPIO_LED_PCA10059_STATUS    _PINNUM(0,  6) // P0.06
+#define SOC_GPIO_LED_PCA10059_GREEN     _PINNUM(1,  9) // P1.09 (Green)
+#define SOC_GPIO_LED_PCA10059_RED       _PINNUM(0,  8) // P0.08 (Red)
+#define SOC_GPIO_LED_PCA10059_BLUE      _PINNUM(0, 12) // P0.12 (Blue)
+
+#define SOC_GPIO_PIN_STATUS   (hw_info.revision == 0 ? SOC_GPIO_LED_TECHO_REV_0_GREEN : \
+                               hw_info.revision == 1 ? SOC_GPIO_LED_TECHO_REV_1_GREEN : \
+                               hw_info.revision == 2 ? SOC_GPIO_LED_TECHO_REV_2_GREEN : \
+                               SOC_GPIO_LED_PCA10059_STATUS)
+
+#define SOC_GPIO_LED_USBMSC   (hw_info.revision == 0 ? SOC_GPIO_LED_TECHO_REV_0_RED : \
+                               hw_info.revision == 1 ? SOC_GPIO_LED_TECHO_REV_1_RED : \
+                               hw_info.revision == 2 ? SOC_GPIO_LED_TECHO_REV_2_RED : \
+                               SOC_GPIO_LED_PCA10059_RED)
+
+#define SOC_GPIO_LED_BLE      (hw_info.revision == 0 ? SOC_GPIO_LED_TECHO_REV_0_BLUE : \
+                               hw_info.revision == 1 ? SOC_GPIO_LED_TECHO_REV_1_BLUE : \
+                               hw_info.revision == 2 ? SOC_GPIO_LED_TECHO_REV_2_BLUE : \
+                               SOC_GPIO_LED_PCA10059_BLUE)
 
 #define SOC_GPIO_PIN_BUZZER   SOC_UNUSED_PIN
 #define SOC_GPIO_PIN_BATTERY  _PINNUM(0, 4) // P0.04 (AIN2)
@@ -98,10 +137,20 @@ struct rst_info {
 #define SOC_GPIO_PIN_TX3      SOC_UNUSED_PIN
 
 /* SPI */
-#define SOC_GPIO_PIN_MOSI     _PINNUM(0, 22) // P0.22
-#define SOC_GPIO_PIN_MISO     _PINNUM(0, 23) // P0.23
-#define SOC_GPIO_PIN_SCK      _PINNUM(0, 19) // P0.19
-#define SOC_GPIO_PIN_SS       _PINNUM(0, 24) // P0.24
+#define SOC_GPIO_PIN_TECHO_REV_0_MOSI   _PINNUM(0, 22) // P0.22
+#define SOC_GPIO_PIN_TECHO_REV_1_MOSI   SOC_GPIO_PIN_TECHO_REV_0_MOSI
+#define SOC_GPIO_PIN_TECHO_REV_2_MOSI   SOC_GPIO_PIN_TECHO_REV_0_MOSI
+#define SOC_GPIO_PIN_TECHO_REV_0_MISO   _PINNUM(0, 23) // P0.23
+#define SOC_GPIO_PIN_TECHO_REV_1_MISO   SOC_GPIO_PIN_TECHO_REV_0_MISO
+#define SOC_GPIO_PIN_TECHO_REV_2_MISO   SOC_GPIO_PIN_TECHO_REV_0_MISO
+#define SOC_GPIO_PIN_TECHO_REV_0_SCK    _PINNUM(0, 19) // P0.19
+#define SOC_GPIO_PIN_TECHO_REV_1_SCK    SOC_GPIO_PIN_TECHO_REV_0_SCK
+#define SOC_GPIO_PIN_TECHO_REV_2_SCK    SOC_GPIO_PIN_TECHO_REV_0_SCK
+#define SOC_GPIO_PIN_SS                 _PINNUM(0, 24) // P0.24
+
+#define SOC_GPIO_PIN_PCA10059_MOSI      _PINNUM(0, 22) // P0.22
+#define SOC_GPIO_PIN_PCA10059_MISO      _PINNUM(0, 13) // P0.13
+#define SOC_GPIO_PIN_PCA10059_SCK       _PINNUM(0, 14) // P0.14
 
 /* NRF905 */
 #define SOC_GPIO_PIN_TXE      SOC_UNUSED_PIN
@@ -109,8 +158,13 @@ struct rst_info {
 #define SOC_GPIO_PIN_PWR      SOC_UNUSED_PIN
 
 /* SX1262 or SX1276 */
-#define SOC_GPIO_PIN_RST      _PINNUM(0, 25) // P0.25
-#define SOC_GPIO_PIN_DIO0     SOC_UNUSED_PIN
+#define SOC_GPIO_PIN_TECHO_REV_0_RST    _PINNUM(0, 25) // P0.25
+#define SOC_GPIO_PIN_TECHO_REV_1_RST    SOC_GPIO_PIN_TECHO_REV_0_RST
+#define SOC_GPIO_PIN_TECHO_REV_2_RST    SOC_GPIO_PIN_TECHO_REV_0_RST
+#define SOC_GPIO_PIN_PCA10059_RST       _PINNUM(0, 15) // P0.15
+#define SOC_GPIO_PIN_TECHO_REV_0_DIO0   SOC_UNUSED_PIN
+#define SOC_GPIO_PIN_TECHO_REV_1_DIO0   _PINNUM(1,  1) // P1.01
+#define SOC_GPIO_PIN_TECHO_REV_2_DIO0   _PINNUM(0, 15) // P0.15
 #define SOC_GPIO_PIN_DIO1     _PINNUM(0, 20) // P0.20
 #define SOC_GPIO_PIN_BUSY     _PINNUM(0, 17) // P0.17
 
@@ -122,8 +176,14 @@ struct rst_info {
 #define SOC_GPIO_PIN_SCL      _PINNUM(0, 27) // P0.27
 
 /* buttons */
-#define SOC_GPIO_PIN_BUTTON   _PINNUM(1, 10) // P1.10
-#define SOC_GPIO_PIN_PAD      _PINNUM(0, 11) // P0.11
+#define SOC_GPIO_PIN_TECHO_REV_0_BUTTON _PINNUM(1, 10) // P1.10
+#define SOC_GPIO_PIN_TECHO_REV_1_BUTTON SOC_GPIO_PIN_TECHO_REV_0_BUTTON
+#define SOC_GPIO_PIN_TECHO_REV_2_BUTTON SOC_GPIO_PIN_TECHO_REV_0_BUTTON
+#define SOC_GPIO_PIN_PCA10059_BUTTON    _PINNUM(1,  6) // P1.06
+#define SOC_GPIO_PIN_PAD                _PINNUM(0, 11) // P0.11
+
+#define SOC_GPIO_PIN_BUTTON   SOC_GPIO_PIN_TECHO_REV_0_BUTTON
+//#define SOC_GPIO_PIN_BUTTON   SOC_GPIO_PIN_PCA10059_BUTTON
 
 /* E-paper */
 #define SOC_GPIO_PIN_EPD_MISO _PINNUM(1,  7) // P1.07
@@ -135,13 +195,20 @@ struct rst_info {
 #define SOC_GPIO_PIN_EPD_BUSY _PINNUM(0,  3) // P0.03
 #define SOC_GPIO_PIN_EPD_BLGT _PINNUM(1, 11) // P1.11
 
+/* Power: EINK, RGB, CN1 (, RF) REV_2: FLASH, GNSS, SENSOR */
 #define SOC_GPIO_PIN_IO_PWR   _PINNUM(0, 12) // P0.12
+/* REV_2 power: RF */
+#define SOC_GPIO_PIN_3V3_PWR  _PINNUM(0, 13) // P0.13
+/* Modded REV_1 3V3 power */
+#define SOC_GPIO_PIN_TECHO_REV_1_3V3_PWR  SOC_GPIO_PIN_TECHO_REV_1_DIO0
 
 /* MX25R1635F SPI flash */
 #define SOC_GPIO_PIN_SFL_MOSI _PINNUM(1, 12) // P1.12
 #define SOC_GPIO_PIN_SFL_MISO _PINNUM(1, 13) // P1.13
 #define SOC_GPIO_PIN_SFL_SCK  _PINNUM(1, 14) // P1.14
 #define SOC_GPIO_PIN_SFL_SS   _PINNUM(1, 15) // P1.15
+#define SOC_GPIO_PIN_SFL_HOLD _PINNUM(0,  5) // P0.05 (REV_1 and REV_2)
+#define SOC_GPIO_PIN_SFL_WP   _PINNUM(0,  7) // P0.07 (REV_1 and REV_2)
 
 /* RTC */
 #define SOC_GPIO_PIN_R_INT    _PINNUM(0, 16) // P0.16
@@ -149,12 +216,13 @@ struct rst_info {
 #define EXCLUDE_WIFI
 #define EXCLUDE_CC13XX
 //#define EXCLUDE_TEST_MODE
+//#define EXCLUDE_LK8EX1
 
 #define EXCLUDE_GNSS_UBLOX
 #define EXCLUDE_GNSS_SONY
 #define EXCLUDE_GNSS_MTK
-//#define EXCLUDE_GNSS_GOKE
-#define EXCLUDE_GNSS_AT65
+//#define EXCLUDE_GNSS_GOKE     /* 'Air530' GK9501 GPS/GLO/BDS (GAL inop.) */
+//#define EXCLUDE_GNSS_AT65     /* Quectel L76K */
 
 /* Component                         Cost */
 /* -------------------------------------- */
@@ -173,11 +241,20 @@ struct rst_info {
 //#define EXCLUDE_SX1276           //  -  3 kb
 
 //#define USE_OLED                 //  +    kb
+//#define EXCLUDE_OLED_BARO_PAGE
 #define USE_EPAPER                 //  +    kb
 
+/* Experimental */
+//#define USE_WEBUSB_SERIAL
+//#define USE_WEBUSB_SETTINGS
+//#define USE_USB_MIDI
+//#define USE_BLE_MIDI
+//#define EXCLUDE_NUS
+#define EXCLUDE_BOARD_SELF_DETECT
+
 /* SoftRF/nRF52 PFLAU NMEA sentence extension(s) */
-#define PFLAU_EXT1_FMT  ",%06X,%d,%d,%d,%d"
-#define PFLAU_EXT1_ARGS ,ThisAircraft.addr,settings->rf_protocol,rx_packets_counter,tx_packets_counter,(int)(Battery_voltage()*100)
+//#define PFLAU_EXT1_FMT  ",%06X,%d,%d,%d,%d"
+//#define PFLAU_EXT1_ARGS ,ThisAircraft.addr,settings->rf_protocol,rx_packets_counter,tx_packets_counter,(int)(Battery_voltage()*100)
 
 #if !defined(EXCLUDE_LED_RING)
 #include <Adafruit_NeoPixel.h>
@@ -189,42 +266,6 @@ extern Adafruit_NeoPixel strip;
 extern Uart Serial2;
 #endif
 
-typedef struct UI_Settings {
-    uint8_t  adapter;
-
-    uint8_t  connection:4;
-    uint8_t  units:2;
-    uint8_t  zoom:2;
-
-    uint8_t  protocol;
-    uint8_t  baudrate;
-    char     server  [18];
-    char     key     [18];
-
-    uint8_t  resvd1:2;
-    uint8_t  orientation:1;
-    uint8_t  adb:3;
-    uint8_t  idpref:2;
-
-    uint8_t  vmode:2;
-    uint8_t  voice:3;
-    uint8_t  aghost:3;
-
-    uint8_t  filter:4;
-    uint8_t  power_save:4;
-
-    uint32_t team;
-
-    uint8_t  resvd2;
-    uint8_t  resvd3;
-    uint8_t  resvd4;
-    uint8_t  resvd5;
-    uint8_t  resvd6;
-    uint8_t  resvd7;
-    uint8_t  resvd8;
-    uint8_t  resvd9;
-} __attribute__((packed)) ui_settings_t;
-
 extern PCF8563_Class *rtc;
 
 #if defined(USE_EPAPER)
@@ -234,8 +275,6 @@ typedef void EPD_Task_t;
 
 extern GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> *display;
 #endif /* USE_EPAPER */
-
-extern ui_settings_t *ui;
 
 #endif /* PLATFORM_NRF52_H */
 

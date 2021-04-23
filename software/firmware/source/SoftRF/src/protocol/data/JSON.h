@@ -1,6 +1,6 @@
 /*
  * JSONHelper.h
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -81,6 +81,7 @@ extern bool hasValidGPSDFix;
 extern void JSON_Export();
 extern void parseTPV(JsonObject&);
 extern void parseSettings(JsonObject&);
+extern void parseUISettings(JsonObject&);
 extern void parseD1090(JsonObject&);
 extern void parsePING(JsonObject&);
 extern void parseRAW(JsonObject&);

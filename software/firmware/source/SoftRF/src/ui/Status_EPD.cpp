@@ -1,6 +1,6 @@
 /*
  * View_Status_EPD.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ void EPD_status_setup()
   navbox3.y = navbox1.y + navbox1.height;
   navbox3.width  = navbox1.width;
   navbox3.height = navbox1.height;
-  navbox3.value      = ThisAircraft.addr & 0xFFFFFF;
+  navbox3.value      = ThisAircraft.addr;
   navbox3.prev_value = navbox3.value;
   navbox3.timestamp  = millis();
 
@@ -122,9 +122,6 @@ static void EPD_Draw_NavBoxes()
   uint16_t tbw, tbh;
 
   if (!EPD_ready_to_display) {
-
-    display->setPartialWindow(0, 0,
-                              display->width(), display->height());
 
     uint16_t top_navboxes_x = navbox1.x;
     uint16_t top_navboxes_y = navbox1.y;
@@ -242,9 +239,6 @@ static void EPD_Update_NavBoxes()
   if (!EPD_ready_to_display) {
 
     bool updated = false;
-
-    display->setPartialWindow(0, 0,
-                              display->width(), display->height());
 
     if (navbox1.value != navbox1.prev_value) {
 

@@ -1,6 +1,6 @@
 /*
  * Platform_ESP8266.h
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
-//#define USE_EXP_SW_SERIAL
+#define USE_EXP_SW_SERIAL
 
 #if defined(USE_EXP_SW_SERIAL)
 #include <Exp_SoftwareSerial.h>
@@ -43,6 +43,8 @@
 #define EEPROM_commit()         EEPROM.commit()
 
 #define isValidFix()            isValidGNSSFix()
+
+#define LED_STATE_ON            HIGH  // State when LED is litted
 
 #define uni_begin()             strip.begin()
 #define uni_show()              strip.show()
@@ -106,6 +108,7 @@ extern Adafruit_NeoPixel strip;
 #define EXCLUDE_GNSS_AT65
 
 #define EXCLUDE_CC13XX
+#define EXCLUDE_LK8EX1
 
 #if defined(pgm_read_float_aligned)
 #define pgm_read_float(addr)  pgm_read_float_aligned(addr)

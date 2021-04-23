@@ -4,7 +4,7 @@
 
 ## License
 
-Copyright (C) 2016-2020 Linar Yusupov <linar.r.yusupov@gmail.com>
+Copyright (C) 2016-2021 Linar Yusupov <linar.r.yusupov@gmail.com>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,3 +64,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * port of MicroPython for ESP32 is developed by **Boris Lovosevic**
  * ESP32 BT SPP library is developed by **Evandro Copercini**
  * TFT library is developed by **Bodmer**
+ * ADXL362 library is developed by **Anne Mahaffey**
+ * Arduino Core for nRF52 and TinyUSB library are developed by **Ha Thach**
+ * Arduino-NVM library is developed by **Frank Holtz**
+ * U8g2 fonts for Adafruit GFX are developed by **Oliver Kraus**
+ * Adafruit SPIFlash and SleepyDog libraries are developed by **Adafruit Industries**
+ * SdFat library is developed by **Bill Greiman**
+ * Arduino MIDI library is developed by **Francois Best**

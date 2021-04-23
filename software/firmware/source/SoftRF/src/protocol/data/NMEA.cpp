@@ -1,6 +1,6 @@
 /*
  * NMEAHelper.cpp
- * Copyright (C) 2017-2020 Linar Yusupov
+ * Copyright (C) 2017-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "../../driver/WiFi.h"
 #include "../../driver/EEPROM.h"
 #include "../../driver/Battery.h"
+#include "../../driver/Baro.h"
 #include "../../TrafficHelper.h"
 
 #define ADDR_TO_HEX_STR(s, c) (s += ((c) < 0x10 ? "0" : "") + String((c), HEX))
@@ -127,6 +128,21 @@ void NMEA_loop()
     NMEA_add_checksum(NMEABuffer, sizeof(NMEABuffer) - strlen(NMEABuffer));
 
     NMEA_Out(settings->nmea_out, (byte *) NMEABuffer, strlen(NMEABuffer), false);
+
+#if !defined(EXCLUDE_LK8EX1)
+    char str_Vcc[6];
+    dtostrf(Battery_voltage(), 3, 1, str_Vcc);
+
+    snprintf_P(NMEABuffer, sizeof(NMEABuffer), PSTR("$LK8EX1,999999,%d,%d,%d,%s*"),
+            constrain((int) ThisAircraft.pressure_altitude, -1000, 99998), /* meters */
+            (int) ((ThisAircraft.vs * 100) / (_GPS_FEET_PER_METER * 60)),  /* cm/s   */
+            constrain((int) Baro_temperature(), -99, 98),                  /* deg. C */
+            str_Vcc);
+
+    NMEA_add_checksum(NMEABuffer, sizeof(NMEABuffer) - strlen(NMEABuffer));
+
+    NMEA_Out(settings->nmea_out, (byte *) NMEABuffer, strlen(NMEABuffer), false);
+#endif /* EXCLUDE_LK8EX1 */
 
     PGRMZ_TimeMarker = millis();
   }

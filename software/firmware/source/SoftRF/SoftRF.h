@@ -1,6 +1,6 @@
 /*
  * SoftRF.h
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,11 @@
 #include <raspi/raspi.h>
 #endif /* RASPBERRY_PI */
 
+<<<<<<< HEAD
 #define SOFTRF_FIRMWARE_VERSION "RC8.1"
+=======
+#define SOFTRF_FIRMWARE_VERSION "1.0-rc9"
+>>>>>>> abc8bc9e875f2182fc358a31860198d601af4670
 #define SOFTRF_IDENT            "SoftRF-"
 
 #define ENTRY_EXPIRATION_TIME   10 /* seconds */
@@ -140,6 +144,9 @@ typedef struct UFO {
     float     bearing;
     int8_t    alarm_level;
 
+    /* bitmap of issued voice/tone/ble/... alerts */
+    uint8_t   alert;
+
     /* ADS-B (ES, UAT, GDL90) specific data */
     uint8_t   callsign[8];
 } ufo_t;
@@ -209,6 +216,16 @@ enum
 	SOFTRF_SHUTDOWN_LOWBAT,
 	SOFTRF_SHUTDOWN_SENSOR
 };
+
+static inline uint32_t DevID_Mapper(uint32_t id)
+{
+  /* remap address to avoid overlapping with congested FLARM range */
+  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
+    id += 0x100000;
+  }
+
+  return id;
+}
 
 extern ufo_t ThisAircraft;
 extern hardware_info_t hw_info;

@@ -1,6 +1,6 @@
 /*
  * Platform_ESP8266.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -109,6 +109,21 @@ static void ESP8266_EPD_setup()
   }
 }
 
+static void ESP8266_EPD_fini()
+{
+
+}
+
+static bool ESP8266_EPD_is_ready()
+{
+  return true;
+}
+
+static void ESP8266_EPD_update(int val)
+{
+  EPD_Update_Sync(val);
+}
+
 static size_t ESP8266_WiFi_Receive_UDP(uint8_t *buf, size_t max_size)
 {
   return WiFi_Receive_UDP(buf, max_size);
@@ -205,6 +220,9 @@ const SoC_ops_t ESP8266_ops = {
   ESP8266_Battery_setup,
   ESP8266_Battery_voltage,
   ESP8266_EPD_setup,
+  ESP8266_EPD_fini,
+  ESP8266_EPD_is_ready,
+  ESP8266_EPD_update,
   ESP8266_WiFi_Receive_UDP,
   ESP8266_WiFi_clients_count,
   ESP8266_DB_init,

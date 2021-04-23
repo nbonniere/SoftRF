@@ -26,6 +26,7 @@ Recommended:
 - [ ]   Prime Mark II
 - [ ]   Uni
 - [ ]   Dongle
+- [ ]   Mini
 - [ ]   SkyView EZ
 - [ ]   Raspberry Edition
 - [ ]   UAV
@@ -43,7 +44,7 @@ Recommended:
 
 <  screenshot of WebUI settings page > (**required**)
 
-## Describe the bug (or ask a question)
+## Describe the bug
 
 
 ## To Reproduce

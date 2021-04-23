@@ -1,6 +1,6 @@
 /*
  * SoCHelper.h
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ typedef struct SoC_ops_struct {
   uint32_t (*getFreeHeap)();
   long (*random)(long, long);
   void (*Sound_test)(int);
+  void (*Sound_tone)(int, uint8_t);
   uint32_t (*maxSketchSpace)();
   void (*WiFi_set_param)(int, int);
   void (*WiFi_transmit_UDP)(int, byte *, size_t);
@@ -52,6 +53,7 @@ typedef struct SoC_ops_struct {
   bool (*WiFi_hostname)(String);
   int  (*WiFi_clients_count)();
   bool (*EEPROM_begin)(size_t);
+  void (*EEPROM_extension)();
   void (*SPI_begin)();
   void (*swSer_begin)(unsigned long);
   void (*swSer_enableRx)(boolean);
@@ -62,7 +64,7 @@ typedef struct SoC_ops_struct {
   void (*Display_loop)();
   void (*Display_fini)(int);
   void (*Battery_setup)();
-  float (*Battery_voltage)();
+  float (*Battery_param)(uint8_t);
   void (*GNSS_PPS_handler)();
   unsigned long (*get_PPS_TimeMarker)();
   bool (*Baro_setup)();

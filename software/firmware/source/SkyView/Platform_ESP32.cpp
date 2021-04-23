@@ -1,6 +1,6 @@
 /*
  * Platform_ESP32.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -117,7 +117,7 @@ static sqlite3 *icao_db = NULL;
 
 static uint8_t sdcard_files_to_open = 0;
 
-SPIClass SPI1(HSPI);
+SPIClass uSD_SPI(HSPI);
 
 /* variables hold file, state of process wav file and wav file properties */
 wavProperties_t wavProps;
@@ -154,7 +154,7 @@ static void ESP32_fini()
   int mode_button_pin = SOC_BUTTON_MODE_DEF;
 
   if (settings && (settings->adapter == ADAPTER_TTGO_T5S)) {
-    SPI1.end();
+    uSD_SPI.end();
 
     mode_button_pin = SOC_BUTTON_MODE_T5S;
   }
@@ -219,6 +219,7 @@ static void ESP32_setup()
    *  TTGO T8  V1.8   | WROVER     | GIGADEVICE_GD25LQ32
    *  TTGO T5S V1.9   |            | WINBOND_NEX_W25Q32_V
    *  TTGO T5S V2.8   |            | BOYA_BY25Q32AL
+   *  TTGO T5  4.7    | WROVER-E   | XMC_XM25QH128C
    *  TTGO T-Watch    |            | WINBOND_NEX_W25Q128_V
    */
 
@@ -228,6 +229,10 @@ static void ESP32_setup()
     case MakeFlashId(GIGADEVICE_ID, GIGADEVICE_GD25LQ32):
       /* ESP32-WROVER module */
       hw_info.revision = HW_REV_T8_1_8;
+      break;
+    case MakeFlashId(ST_ID, XMC_XM25QH128C):
+      /* custom ESP32-WROVER-E module with 16 MB flash */
+      hw_info.revision = HW_REV_T5_1;
       break;
     default:
       hw_info.revision = HW_REV_UNKNOWN;
@@ -308,6 +313,7 @@ static bool ESP32_WiFi_hostname(String aHostname)
 static void ESP32_swSer_begin(unsigned long baud)
 {
   SerialInput.begin(baud, SERIAL_8N1, SOC_GPIO_PIN_GNSS_RX, SOC_GPIO_PIN_GNSS_TX);
+  SerialInput.setRxBufferSize(baud / 10); /* 1 second */
 }
 
 static void ESP32_swSer_enableRx(boolean arg)
@@ -336,8 +342,13 @@ static float ESP32_Battery_voltage()
   float voltage = ((float) read_voltage()) * 0.001 ;
 
   /* T5 has voltage divider 100k/100k on board */
-  return (settings->adapter == ADAPTER_TTGO_T5S ? 2 * voltage : voltage);
+  return (settings->adapter == ADAPTER_TTGO_T5S    ||
+          settings->adapter == ADAPTER_TTGO_T5_4_7 ?
+          2 * voltage : voltage);
 }
+
+#define EPD_STACK_SZ      (256*4)
+static TaskHandle_t EPD_Task_Handle = NULL;
 
 static void ESP32_EPD_setup()
 {
@@ -350,6 +361,11 @@ static void ESP32_EPD_setup()
               SOC_GPIO_PIN_MOSI_WS,
               SOC_GPIO_PIN_SS_WS);
     break;
+#if defined(BUILD_SKYVIEW_HD)
+  case ADAPTER_TTGO_T5_4_7:
+    display = NULL;
+    break;
+#endif /* BUILD_SKYVIEW_HD */
   case ADAPTER_TTGO_T5S:
   default:
     display = &epd_ttgo_t5s;
@@ -359,12 +375,35 @@ static void ESP32_EPD_setup()
               SOC_GPIO_PIN_SS_T5S);
 
     /* SD-SPI init */
-    SPI1.begin(SOC_SD_PIN_SCK_T5S,
-               SOC_SD_PIN_MISO_T5S,
-               SOC_SD_PIN_MOSI_T5S,
-               SOC_SD_PIN_SS_T5S);
+    uSD_SPI.begin(SOC_SD_PIN_SCK_T5S,
+                  SOC_SD_PIN_MISO_T5S,
+                  SOC_SD_PIN_MOSI_T5S,
+                  SOC_SD_PIN_SS_T5S);
     break;
   }
+
+  xTaskCreateUniversal(EPD_Task, "EPD update", EPD_STACK_SZ, NULL, 1,
+                       &EPD_Task_Handle, CONFIG_ARDUINO_RUNNING_CORE);
+}
+
+static void ESP32_EPD_fini()
+{
+  if( EPD_Task_Handle != NULL )
+  {
+    vTaskDelete( EPD_Task_Handle );
+  }
+}
+
+static bool ESP32_EPD_is_ready()
+{
+//  return true;
+  return (EPD_task_command == EPD_UPDATE_NONE);
+}
+
+static void ESP32_EPD_update(int val)
+{
+//  EPD_Update_Sync(val);
+  EPD_task_command = val;
 }
 
 static size_t ESP32_WiFi_Receive_UDP(uint8_t *buf, size_t max_size)
@@ -400,12 +439,14 @@ static bool ESP32_DB_init()
     return rval;
   }
 
+#if !defined(BUILD_SKYVIEW_HD)
+
   sdcard_files_to_open += (settings->adb   == DB_FLN    ? 1 : 0);
   sdcard_files_to_open += (settings->adb   == DB_OGN    ? 1 : 0);
   sdcard_files_to_open += (settings->adb   == DB_ICAO   ? 1 : 0);
   sdcard_files_to_open += (settings->voice != VOICE_OFF ? 1 : 0);
 
-  if (!SD.begin(SOC_SD_PIN_SS_T5S, SPI1, 4000000, "/sd", sdcard_files_to_open)) {
+  if (!SD.begin(SOC_SD_PIN_SS_T5S, uSD_SPI, 4000000, "/sd", sdcard_files_to_open)) {
     Serial.println(F("ERROR: Failed to mount microSD card."));
     return rval;
   }
@@ -448,6 +489,7 @@ static bool ESP32_DB_init()
       rval = true;
     }
   }
+#endif /* BUILD_SKYVIEW_HD */
 
   return rval;
 }
@@ -464,6 +506,8 @@ static bool ESP32_DB_query(uint8_t type, uint32_t id, char *buf, size_t size)
   if (settings->adapter != ADAPTER_TTGO_T5S) {
     return false;
   }
+
+#if !defined(BUILD_SKYVIEW_HD)
 
   switch (type)
   {
@@ -555,11 +599,14 @@ static bool ESP32_DB_query(uint8_t type, uint32_t id, char *buf, size_t size)
 
   free(query);
 
+#endif /* BUILD_SKYVIEW_HD */
+
   return rval;
 }
 
 static void ESP32_DB_fini()
 {
+#if !defined(BUILD_SKYVIEW_HD)
   if (settings->adapter == ADAPTER_TTGO_T5S) {
 
     if (settings->adb != DB_NONE) {
@@ -580,6 +627,7 @@ static void ESP32_DB_fini()
 
     SD.end();
   }
+#endif /* BUILD_SKYVIEW_HD */
 }
 
 /* write sample data to I2S */
@@ -695,7 +743,10 @@ static void ESP32_TTS(char *message)
       if (SD.cardType() == CARD_NONE)
         return;
 
+      while (!SoC->EPD_is_ready()) {yield();}
       EPD_Message("VOICE", "ALERT");
+      SoC->EPD_update(EPD_UPDATE_FAST);
+      while (!SoC->EPD_is_ready()) {yield();}
 
       bool wdt_status = loopTaskWDTEnabled;
 
@@ -899,6 +950,9 @@ const SoC_ops_t ESP32_ops = {
   ESP32_Battery_setup,
   ESP32_Battery_voltage,
   ESP32_EPD_setup,
+  ESP32_EPD_fini,
+  ESP32_EPD_is_ready,
+  ESP32_EPD_update,
   ESP32_WiFi_Receive_UDP,
   ESP32_WiFi_clients_count,
   ESP32_DB_init,

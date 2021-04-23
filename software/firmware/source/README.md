@@ -41,7 +41,7 @@
 ## ESP32
 
 1. Follow [these official instructions](https://github.com/espressif/arduino-esp32/blob/master/docs/arduino-ide/boards_manager.md)
-  to install Arduino IDE and [latest **stable** Arduino ESP32 Core](https://github.com/espressif/arduino-esp32/releases/tag/1.0.4) (1.0.4)
+  to install Arduino IDE and [latest **stable** Arduino ESP32 Core](https://github.com/espressif/arduino-esp32/releases/tag/1.0.5) (1.0.5)
 2. Become familiar with IDE and **DoIt ESP32 DevKit** by building and uploading of a basic **Blink** sketch:<br>
 ```
 int ledPin = 2; // use pin 14 for TTGO T-Beam rev.05 or higher   
@@ -179,7 +179,7 @@ You will need to have an ST-LINK/V2 USB adapter connected in order to put the fi
 6. open **SoftRF** sketch from _File_ -> _Open_ menu
 7. For S76G:<br>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Select _Tools_ -> _Board_ ->  _Nucleo_64_<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Select _Tools_ -> _Optimize_ ->  _Fast_ _(-O1)_<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Select _Tools_ -> _Optimize_ ->  _Smallest_ _(-Os_ _default)_<br>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Select _Tools_ -> _Board_ _part_ _number_ ->  _Nucleo_ _L073RZ_<br>
     For STM32F103C8 "Blue Pill":<br>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Select _Tools_ -> _Board_ ->  _Generic_ _STM32F1_ _series_<br>
@@ -204,7 +204,7 @@ You will need to have an ST-LINK/V2 USB adapter connected in order to put the fi
 ## ASR650x
 
 1. Follow [these official instructions](https://heltec-automation-docs.readthedocs.io/en/latest/cubecell/quick_start.html)
-  to install Arduino IDE and [latest **stable** Heltec CubeCell (ASR650X) Arduino Support](https://github.com/HelTecAutomation/ASR650x-Arduino/releases/tag/V1.1.0) (1.1.0)
+  to install Arduino IDE and [latest **stable** Heltec CubeCell (ASR650X) Arduino Support](https://github.com/HelTecAutomation/ASR650x-Arduino/releases/tag/V1.2.0) (1.2.0)
 2. open ``<My Documents>`` (Windows) or ``<Home>`` (Linux) directory
 3. create **Arduino** sub-directory
 4. transfer full content of **SoftRF** and **libraries** GitHub folders into the sub-directory:

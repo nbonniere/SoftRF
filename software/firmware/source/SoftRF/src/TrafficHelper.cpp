@@ -1,6 +1,6 @@
 /*
  * TrafficHelper.cpp
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "driver/EEPROM.h"
 #include "driver/RF.h"
 #include "driver/GNSS.h"
+#include "driver/Sound.h"
 #include "ui/Web.h"
 #include "protocol/radio/Legacy.h"
 
@@ -154,6 +155,13 @@ void ParseData()
       StdOut.println(RF_last_rssi);
     }
 
+    if (memcmp(RxBuffer, TxBuffer, rx_size) == 0) {
+      if (settings->nmea_p) {
+        StdOut.println(F("$PSRFE,RF loopback is detected"));
+      }
+      return;
+    }
+
     if (protocol_decode && (*protocol_decode)((void *) RxBuffer, &ThisAircraft, &fo)) {
 
       int i;
@@ -164,7 +172,9 @@ void ParseData()
 
       for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
         if (Container[i].addr == fo.addr) {
+          uint8_t alert_bak = Container[i].alert;
           Container[i] = fo;
+          Container[i].alert = alert_bak;
           return;
         }
       }
@@ -230,8 +240,13 @@ void Traffic_loop()
 
       if (Container[i].addr &&
           (ThisAircraft.timestamp - Container[i].timestamp) <= ENTRY_EXPIRATION_TIME) {
-        if ((ThisAircraft.timestamp - Container[i].timestamp) >= TRAFFIC_VECTOR_UPDATE_INTERVAL)
+        if ((ThisAircraft.timestamp - Container[i].timestamp) >= TRAFFIC_VECTOR_UPDATE_INTERVAL) {
           Traffic_Update(&Container[i]);
+        }
+        if ((Container[i].alert & TRAFFIC_ALERT_SOUND) == 0) {
+          Sound_Notify();
+          Container[i].alert |= TRAFFIC_ALERT_SOUND;
+        }
       } else {
         Container[i] = EmptyFO;
       }

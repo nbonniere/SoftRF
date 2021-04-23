@@ -1,6 +1,6 @@
 /*
  * EPDHelper.h
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,19 +49,26 @@ typedef struct navbox_struct
   uint16_t  width;
   uint16_t  height;
   int       value;
-  int       prev_value;
   uint32_t  timestamp;
 } navbox_t;
+
+enum
+{
+	EPD_UPDATE_NONE,
+	EPD_UPDATE_SLOW,
+	EPD_UPDATE_FAST
+};
 
 byte EPD_setup(bool);
 void EPD_loop();
 void EPD_fini(const char *);
 
-void EPD_Clear_Screen();
 void EPD_Mode();
 void EPD_Up();
 void EPD_Down();
 void EPD_Message(const char *, const char *);
+void EPD_Update_Sync(int);
+void EPD_Task(void *);
 
 void EPD_radar_setup();
 void EPD_radar_loop();
@@ -77,6 +84,7 @@ void EPD_text_Draw_Message(const char *, const char *);
 extern GxEPD2_BW<GxEPD2_270, GxEPD2_270::HEIGHT> *display;
 extern unsigned long EPDTimeMarker;
 extern bool EPD_display_frontpage;
+extern volatile int EPD_task_command;
 
 static uint8_t sleep_icon_128x128[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

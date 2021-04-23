@@ -1,6 +1,6 @@
 /*
  * TrafficHelper.h
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,6 +46,8 @@ enum
 	TRAFFIC_ALARM_VECTOR,
 	TRAFFIC_ALARM_LEGACY
 };
+
+#define TRAFFIC_ALERT_SOUND   1
 
 void ParseData(void);
 void Traffic_setup(void);

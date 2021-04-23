@@ -1,6 +1,6 @@
 #
 # Makefile.RPi
-# Copyright (C) 2018-2020 Linar Yusupov
+# Copyright (C) 2018-2021 Linar Yusupov
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-BASICMAC      = -DUSE_BASICMAC
+#BASICMAC      = -DUSE_BASICMAC
 #NOMAVLINK    = -DEXCLUDE_MAVLINK
 
 CC            = gcc
@@ -29,20 +29,26 @@ CXXFLAGS      = -std=c++11 $(CFLAGS)
 SKETCH        = SoftRF.ino
 
 BIN_ELF       := $(SKETCH:.ino=.ino.elf)
+BIN_HEX       := $(BIN_ELF:.elf=.hex)
 BIN_IHEX      := $(BIN_ELF:.elf=.ihex)
+BIN_UF2       := $(BIN_ELF:.elf=.uf2)
 
 SOFTRF_DIR    = ../SoftRF
-BINDIR        = /tmp/energia
 
 ARDUINO       = arduino
 ENERGIA       = energia
+
+TC_PATH       = $(HOME)/.energia15/packages/energia/tools/arm-none-eabi-gcc/4.8.4-20140725/bin
+BINDIR        = /tmp/$(ENERGIA)
+HEXDIR        = /tmp/$(ARDUINO)
+
 LN            = ln -s
 RM            = rm -f
-TC_PATH       = $(HOME)/.energia15/packages/energia/tools/arm-none-eabi-gcc/4.8.4-20140725/bin
 OBJCOPY       = arm-none-eabi-objcopy -O ihex -R .empty -R .vtable \
                  -R .dmaSpi0RxControlTableEntry -R .dmaSpi0TxControlTableEntry \
                  -R .dmaSpi1RxControlTableEntry -R .dmaSpi1TxControlTableEntry
 SED           = sed -i 's/:10FFD800FFFFFF00FFFFFFFF00FFFFFFC500C5FF9A/:10FFD800C501FEC5FFFFFFFF00FFFFFFC500C5FF0E/'
+UF2CONV       = uf2conv.py
 
 SRC_PATH      = src
 LIB_PATH      = ../libraries
@@ -71,6 +77,7 @@ JSON_PATH     = $(LIB_PATH)/ArduinoJson/src
 TCPSRV_PATH   = $(LIB_PATH)/SimpleNetwork/src
 DUMP978_PATH  = $(LIB_PATH)/dump978/src
 GFX_PATH      = $(LIB_PATH)/Adafruit-GFX-Library
+U8G2_PATH     = $(LIB_PATH)/U8g2_for_Adafruit_GFX/src
 EPD2_PATH     = $(LIB_PATH)/GxEPD2/src
 
 ifdef BASICMAC
@@ -85,7 +92,7 @@ INCLUDE       = -I$(PRODAT_PATH) -I$(PRORAD_PATH)  -I$(PLATFORM_PATH) \
                 -I$(BCMLIB_PATH) -I$(MAVLINK_PATH) -I$(AIRCRAFT_PATH) \
                 -I$(ADSB_PATH)   -I$(NMEALIB_PATH) -I$(GEOID_PATH)    \
                 -I$(JSON_PATH)   -I$(TCPSRV_PATH)  -I$(DUMP978_PATH)  \
-                -I$(GFX_PATH)    -I$(EPD2_PATH)
+                -I$(GFX_PATH)    -I$(U8G2_PATH)    -I$(EPD2_PATH)
 
 SRC_CPPS      := $(SRC_PATH)/TrafficHelper.cpp \
                  $(SRC_PATH)/Library.cpp
@@ -128,6 +135,7 @@ UI_CPPS       := $(UI_PATH)/Web.cpp        \
                  $(UI_PATH)/Radar_EPD.cpp  \
                  $(UI_PATH)/Status_EPD.cpp \
                  $(UI_PATH)/Text_EPD.cpp   \
+                 $(UI_PATH)/Baro_EPD.cpp   \
                  $(UI_PATH)/Time_EPD.cpp
 
 SYSTEM_CPPS   := $(SYSTEM_PATH)/SoC.cpp    \
@@ -166,7 +174,8 @@ OBJS          := $(SRC_CPPS:.cpp=.o) \
                  $(DUMP978_PATH)/fec.o $(DUMP978_PATH)/fec/init_rs_char.o \
                  $(DUMP978_PATH)/uat_decode.o $(DUMP978_PATH)/fec/decode_rs_char.o \
                  $(GFX_PATH)/Adafruit_GFX.o $(LMIC_PATH)/raspi/Print.o \
-                 $(EPD2_PATH)/GxEPD2_EPD.o $(EPD2_PATH)/epd/GxEPD2_270.o
+                 $(EPD2_PATH)/GxEPD2_EPD.o $(EPD2_PATH)/epd/GxEPD2_270.o \
+                 $(U8G2_PATH)/U8g2_for_Adafruit_GFX.o $(U8G2_PATH)/u8g2_fonts.o
 
 ifdef BASICMAC
 OBJS          += $(RADIO_PATH)/lmic/radio-sx127x.o $(RADIO_PATH)/lmic/radio-sx126x.o \
@@ -199,6 +208,9 @@ upload:
 ihex:
 				$(TC_PATH)/$(OBJCOPY) $(BINDIR)/$(BIN_ELF) $(BINDIR)/$(BIN_IHEX)
 				$(SED) $(BINDIR)/$(BIN_IHEX)
+
+uf2:
+				$(UF2CONV) $(HEXDIR)/$(BIN_HEX) -c -f 0xADA52840 -o $(HEXDIR)/$(BIN_UF2)
 
 pi: bcm $(PROGNAME) $(PROGNAME)-aux
 

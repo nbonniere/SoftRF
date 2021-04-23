@@ -1,6 +1,6 @@
 /*
  * Platform_RPi.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -235,6 +235,21 @@ static float RPi_Battery_voltage()
 static void RPi_EPD_setup()
 {
   display = &epd_waveshare;
+}
+
+static void RPi_EPD_fini()
+{
+
+}
+
+static bool RPi_EPD_is_ready()
+{
+  return true;
+}
+
+static void RPi_EPD_update(int val)
+{
+  EPD_Update_Sync(val);
 }
 
 static size_t RPi_WiFi_Receive_UDP(uint8_t *buf, size_t max_size)
@@ -623,6 +638,9 @@ const SoC_ops_t RPi_ops = {
   RPi_Battery_setup,
   RPi_Battery_voltage,
   RPi_EPD_setup,
+  RPi_EPD_fini,
+  RPi_EPD_is_ready,
+  RPi_EPD_update,
   RPi_WiFi_Receive_UDP,
   RPi_WiFi_clients_count,
   RPi_DB_init,
@@ -750,6 +768,7 @@ int main(int argc, char *argv[])
   if (isSysVinit) {
     if (hw_info.display == DISPLAY_EPD_2_7) {
       EPD_text_Draw_Message("PLEASE,", "WAIT");
+      SoC->EPD_update(EPD_UPDATE_SLOW);
     }
 
     SoC->Button_fini();

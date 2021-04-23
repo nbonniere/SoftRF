@@ -1,6 +1,6 @@
 /*
  * EEPROMHelper.cpp
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,6 +70,8 @@ void EEPROM_setup()
     }
   }
   settings = &eeprom_block.field.settings;
+
+  SoC->EEPROM_extension();
 }
 
 void EEPROM_defaults()

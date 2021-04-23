@@ -1,6 +1,6 @@
 /*
  * Platform_STM32.h
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 #include "IPAddress.h"
 #include "stm32yyxx_ll_adc.h"
-#include <Adafruit_NeoPixel.h>
 
 /* Maximum of tracked flying objects is now SoC-specific constant */
 #define MAX_TRACKING_OBJECTS    8
@@ -46,6 +45,8 @@
 
 #define AN3155_BR               115200
 #define AN3155_BITS             SERIAL_8E1
+
+#define LED_STATE_ON            HIGH  // State when LED is litted
 
 /* Analog read resolution */
 #if ADC_RESOLUTION == 10
@@ -177,13 +178,15 @@ typedef struct stm32_backup_struct {
 #define SOC_GPIO_SPI1_SS      PA4
 
 /* button */
-#define SOC_GPIO_PIN_BUTTON   SOC_UNUSED_PIN
-//#define SOC_GPIO_PIN_BUTTON   PC4
+//#define SOC_GPIO_PIN_BUTTON   SOC_UNUSED_PIN
+#define SOC_GPIO_PIN_BUTTON   PC4
 //#define SOC_GPIO_PIN_BUTTON   PA3
 
 #define EXCLUDE_WIFI
 #define EXCLUDE_CC13XX
 #define EXCLUDE_TEST_MODE
+
+#define TAKE_CARE_OF_MILLIS_ROLLOVER
 
 #define EXCLUDE_GNSS_UBLOX
 //#define EXCLUDE_GNSS_SONY
@@ -192,15 +195,19 @@ typedef struct stm32_backup_struct {
 #define EXCLUDE_GNSS_AT65
 
 #define USE_OLED                 //  +3.5 kb
+//#define EXCLUDE_OLED_BARO_PAGE
 #define USE_NMEA_CFG             //  +2.5 kb
 #define EXCLUDE_MPL3115A2        //  -  1 kb
 #define EXCLUDE_NRF905           //  -  2 kb
 #define EXCLUDE_EGM96            //  - 16 kb
 #define USE_SERIAL_DEEP_SLEEP    //  + 12 kb
 //#define USE_BASICMAC           //  +  7 kb
+#define EXCLUDE_LED_RING         //  -    kb
+#define EXCLUDE_SOUND
 //#define USE_GNSS_PSM
+#define EXCLUDE_LK8EX1
 
-/* SoftRF/S7xG PFLAU NMEA sentence extension(s) */
+/* SoftRF/S7xG PFLAU NMEA sentence extension. In use by WebTop adapter */
 #define PFLAU_EXT1_FMT  ",%06X,%d,%d,%d"
 #define PFLAU_EXT1_ARGS ,ThisAircraft.addr,settings->rf_protocol,rx_packets_counter,tx_packets_counter
 
@@ -271,12 +278,16 @@ typedef struct stm32_backup_struct {
 /* -------------------------------------- */
 /* USB Serial */                 //  + 10 kb
 #define USE_OLED                 //  +3.5 kb
+#define EXCLUDE_OLED_BARO_PAGE
 #define USE_NMEA_CFG             //  +2.5 kb
 //#define EXCLUDE_BMP180         //  -  1 kb
 //#define EXCLUDE_BMP280         //  -  2 kb
 #define EXCLUDE_MPL3115A2        //  -  1 kb
 //#define EXCLUDE_NRF905         //  -  2 kb
 #define EXCLUDE_EGM96            //  - 16 kb
+#define EXCLUDE_LED_RING         //  -    kb
+#define EXCLUDE_SOUND
+#define EXCLUDE_LK8EX1
 //#define USE_OGN_RF_DRIVER
 //#define WITH_RFM95
 //#define WITH_RFM69
@@ -288,7 +299,11 @@ typedef struct stm32_backup_struct {
 #error "This hardware platform is not supported!"
 #endif
 
+#if !defined(EXCLUDE_LED_RING)
+#include <Adafruit_NeoPixel.h>
+
 extern Adafruit_NeoPixel strip;
+#endif /* EXCLUDE_LED_RING */
 
 #if defined(USE_OLED)
 #define U8X8_OLED_I2C_BUS_TYPE  U8X8_SSD1306_128X64_NONAME_HW_I2C

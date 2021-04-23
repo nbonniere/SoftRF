@@ -1,6 +1,6 @@
 /*
  * GDL90Helper.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  *
  * This program is free software: you can redistribute it and/or modify
@@ -156,26 +156,8 @@ static void GDL90_Parse_Character(char c)
 
         fo.timestamp   = now();
 
-        float RelativeVertical = fo.altitude - ThisAircraft.altitude;
-
-        if ( settings->filter == TRAFFIC_FILTER_OFF  ||
-            (settings->filter == TRAFFIC_FILTER_500M &&
-                             RelativeVertical > -500 &&
-                             RelativeVertical <  500) ) {
-          for (int i=0; i < MAX_TRACKING_OBJECTS; i++) {
-            if (Container[i].ID == fo.ID) {
-              Container[i] = fo;
-              Traffic_Update(i);
-              break;
-            } else {
-              if (now() - Container[i].timestamp > ENTRY_EXPIRATION_TIME) {
-                Container[i] = fo;
-                Traffic_Update(i);
-                break;
-              }
-            }
-          }
-        }
+        Traffic_Update(&fo);
+        Traffic_Add();
       }
     }
 
@@ -200,7 +182,12 @@ static void GDL90_Parse_Character(char c)
 
         ThisAircraft.latitude    = ownship.latitude;
         ThisAircraft.longitude   = ownship.longitude;
-        ThisAircraft.altitude    = ownship.altitude  / _GPS_FEET_PER_METER;
+
+        if (ownship.altitude != 101375 /* 0xFFF */ ) {
+          ThisAircraft.altitude  = ownship.altitude / _GPS_FEET_PER_METER;
+        } else if (geo_altitude.ownshipGeoAltitude != 0) {
+          ThisAircraft.altitude  = geo_altitude.ownshipGeoAltitude / _GPS_FEET_PER_METER;
+        }
 
         ThisAircraft.AlarmLevel  = ownship.trafficAlertStatus == TRAFFIC_ALERT ?
                                             ALARM_LEVEL_LOW : ALARM_LEVEL_NONE;

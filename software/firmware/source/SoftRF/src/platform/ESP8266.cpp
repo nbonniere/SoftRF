@@ -1,6 +1,6 @@
 /*
  * Platform_ESP8266.cpp
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "../driver/WiFi.h"
 #include "../driver/LED.h"
 #include "../driver/GNSS.h"
+#include "../driver/Battery.h"
 
 #include <ets_sys.h>
 #include <osapi.h>
@@ -100,12 +101,7 @@ static uint32_t ESP8266_getChipId()
 #if !defined(SOFTRF_ADDRESS)
   uint32_t id = ESP.getChipId();
 
-  /* remap address to avoid overlapping with congested FLARM range */
-  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
-    id += 0x100000;
-  }
-
-  return id;
+  return DevID_Mapper(id);
 #else
   return (SOFTRF_ADDRESS & 0xFFFFFFFFU );
 #endif
@@ -138,7 +134,7 @@ static long ESP8266_random(long howsmall, long howBig)
 
 static void ESP8266_Sound_test(int var)
 {
-  if (settings->volume != BUZZER_OFF) {
+  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && settings->volume != BUZZER_OFF) {
 //    swSer.enableRx(false);
 
     if (var == REASON_DEFAULT_RST ||
@@ -162,6 +158,13 @@ static void ESP8266_Sound_test(int var)
     delay(600);
 
 //    swSer.enableRx(true);
+  }
+}
+
+static void ESP8266_Sound_tone(int hz, uint8_t volume)
+{
+  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && volume != BUZZER_OFF) {
+    tone(SOC_GPIO_PIN_BUZZER, hz, ALARM_TONE_MS);
   }
 }
 
@@ -287,6 +290,11 @@ static bool ESP8266_EEPROM_begin(size_t size)
   return true;
 }
 
+static void ESP8266_EEPROM_extension()
+{
+
+}
+
 static void ESP8266_SPI_begin()
 {
   SPI.begin();
@@ -326,9 +334,33 @@ static void ESP8266_Battery_setup()
 
 }
 
-static float ESP8266_Battery_voltage()
+static float ESP8266_Battery_param(uint8_t param)
 {
-  return analogRead (SOC_GPIO_PIN_BATTERY) / SOC_A0_VOLTAGE_DIVIDER ;
+  float rval;
+
+  switch (param)
+  {
+  case BATTERY_PARAM_THRESHOLD:
+    rval = BATTERY_THRESHOLD_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CUTOFF:
+    rval = BATTERY_CUTOFF_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CHARGE:
+    /* TBD */
+
+    rval = 100;
+    break;
+
+  case BATTERY_PARAM_VOLTAGE:
+  default:
+    rval = analogRead (SOC_GPIO_PIN_BATTERY) / SOC_A0_VOLTAGE_DIVIDER ;
+    break;
+  }
+
+  return rval;
 }
 
 void ESP8266_GNSS_PPS_Interrupt_handler()
@@ -408,6 +440,7 @@ const SoC_ops_t ESP8266_ops = {
   ESP8266_getFreeHeap,
   ESP8266_random,
   ESP8266_Sound_test,
+  ESP8266_Sound_tone,
   ESP8266_maxSketchSpace,
   ESP8266_WiFi_set_param,
   ESP8266_WiFi_transmit_UDP,
@@ -415,6 +448,7 @@ const SoC_ops_t ESP8266_ops = {
   ESP8266_WiFi_hostname,
   ESP8266_WiFi_clients_count,
   ESP8266_EEPROM_begin,
+  ESP8266_EEPROM_extension,
   ESP8266_SPI_begin,
   ESP8266_swSer_begin,
   ESP8266_swSer_enableRx,
@@ -425,7 +459,7 @@ const SoC_ops_t ESP8266_ops = {
   ESP8266_Display_loop,
   ESP8266_Display_fini,
   ESP8266_Battery_setup,
-  ESP8266_Battery_voltage,
+  ESP8266_Battery_param,
   ESP8266_GNSS_PPS_Interrupt_handler,
   ESP8266_get_PPS_TimeMarker,
   ESP8266_Baro_setup,

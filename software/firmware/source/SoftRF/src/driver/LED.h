@@ -1,6 +1,6 @@
 /*
  * LEDHelper.h
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,6 +64,7 @@ enum
 	DISPLAY_NONE,
 	DISPLAY_OLED_HELTEC,
 	DISPLAY_OLED_TTGO,
+	DISPLAY_OLED_0_49,
 	DISPLAY_TFT_TTGO,
 	DISPLAY_EPD_2_7,
 	DISPLAY_EPD_1_54

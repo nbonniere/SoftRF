@@ -1,6 +1,6 @@
 /*
  * Platform_ESP32.cpp
- * Copyright (C) 2018-2020 Linar Yusupov
+ * Copyright (C) 2018-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -184,6 +184,7 @@ static void ESP32_setup()
      *  TTGO T8  V1.8   | WROVER     | GIGADEVICE_GD25LQ32
      *  TTGO T5S V1.9   |            | WINBOND_NEX_W25Q32_V
      *  TTGO T5S V2.8   |            | BOYA_BY25Q32AL
+     *  TTGO T5  4.7    | WROVER-E   | XMC_XM25QH128C
      *  TTGO T-Watch    |            | WINBOND_NEX_W25Q128_V
      */
 
@@ -265,7 +266,7 @@ static void ESP32_setup()
       axp.setLDO2Voltage (3300); // LoRa, AXP192 power-on value: 3300
       axp.setLDO3Voltage (3000); // GPS,  AXP192 power-on value: 2800
 
-      pinMode(SOC_GPIO_PIN_TBEAM_V08_PMU_IRQ, INPUT_PULLUP);
+      pinMode(SOC_GPIO_PIN_TBEAM_V08_PMU_IRQ, INPUT /* INPUT_PULLUP */);
 
       attachInterrupt(digitalPinToInterrupt(SOC_GPIO_PIN_TBEAM_V08_PMU_IRQ),
                       ESP32_PMU_Interrupt_handler, FALLING);
@@ -282,15 +283,41 @@ static void ESP32_setup()
 
 static void ESP32_post_init()
 {
-  if (settings->nmea_out == NMEA_USB) {
-    settings->nmea_out = NMEA_UART;
+  Serial.println();
+  Serial.println(F("Data output device(s):"));
+
+  Serial.print(F("NMEA   - "));
+  switch (settings->nmea_out)
+  {
+    case NMEA_UART       :  Serial.println(F("UART"));      break;
+    case NMEA_UDP        :  Serial.println(F("UDP"));       break;
+    case NMEA_TCP        :  Serial.println(F("TCP"));       break;
+    case NMEA_BLUETOOTH  :  Serial.println(F("Bluetooth")); break;
+    case NMEA_OFF        :
+    default              :  Serial.println(F("NULL"));      break;
   }
-  if (settings->gdl90 == GDL90_USB) {
-    settings->gdl90 = GDL90_UART;
+
+  Serial.print(F("GDL90  - "));
+  switch (settings->gdl90)
+  {
+    case GDL90_UART      :  Serial.println(F("UART"));      break;
+    case GDL90_UDP       :  Serial.println(F("UDP"));       break;
+    case GDL90_BLUETOOTH :  Serial.println(F("Bluetooth")); break;
+    case GDL90_OFF       :
+    default              :  Serial.println(F("NULL"));      break;
   }
-  if (settings->d1090 == D1090_USB) {
-    settings->d1090 = D1090_UART;
+
+  Serial.print(F("D1090  - "));
+  switch (settings->d1090)
+  {
+    case D1090_UART      :  Serial.println(F("UART"));      break;
+    case D1090_BLUETOOTH :  Serial.println(F("Bluetooth")); break;
+    case D1090_OFF       :
+    default              :  Serial.println(F("NULL"));      break;
   }
+
+  Serial.println();
+  Serial.flush();
 
   switch (hw_info.display)
   {
@@ -457,12 +484,7 @@ static uint32_t ESP32_getChipId()
   uint32_t id = (uint32_t) efuse_mac[5]        | ((uint32_t) efuse_mac[4] << 8) | \
                ((uint32_t) efuse_mac[3] << 16) | ((uint32_t) efuse_mac[2] << 24);
 
-  /* remap address to avoid overlapping with congested FLARM range */
-  if (((id & 0x00FFFFFF) >= 0xDD0000) && ((id & 0x00FFFFFF) <= 0xDFFFFF)) {
-    id += 0x100000;
-  }
-
-  return id;
+  return DevID_Mapper(id);
 #else
   return (SOFTRF_ADDRESS & 0xFFFFFFFFU );
 #endif /* SOFTRF_ADDRESS */
@@ -562,11 +584,9 @@ static long ESP32_random(long howsmall, long howBig)
 
 static void ESP32_Sound_test(int var)
 {
-  if (settings->volume != BUZZER_OFF) {
+  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && settings->volume != BUZZER_OFF) {
 
     ledcAttachPin(SOC_GPIO_PIN_BUZZER, LEDC_CHANNEL_BUZZER);
-
-    ledcWrite(LEDC_CHANNEL_BUZZER, 125); // high volume
 
     if (var == REASON_DEFAULT_RST ||
         var == REASON_EXT_SYS_RST ||
@@ -592,6 +612,27 @@ static void ESP32_Sound_test(int var)
 
     ledcDetachPin(SOC_GPIO_PIN_BUZZER);
     pinMode(SOC_GPIO_PIN_BUZZER, INPUT_PULLDOWN);
+  }
+
+#if defined(USE_BLE_MIDI)
+  ESP32_BLEMIDI_test();
+#endif /* USE_BLE_MIDI */
+}
+
+static void ESP32_Sound_tone(int hz, uint8_t volume)
+{
+  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && volume != BUZZER_OFF) {
+    if (hz > 0) {
+      ledcAttachPin(SOC_GPIO_PIN_BUZZER, LEDC_CHANNEL_BUZZER);
+
+      ledcWriteTone(LEDC_CHANNEL_BUZZER, hz);
+      ledcWrite(LEDC_CHANNEL_BUZZER, volume == BUZZER_VOLUME_FULL ? 0xFF : 0x07);
+    } else {
+      ledcWriteTone(LEDC_CHANNEL_BUZZER, 0); // off
+
+      ledcDetachPin(SOC_GPIO_PIN_BUZZER);
+      pinMode(SOC_GPIO_PIN_BUZZER, INPUT_PULLDOWN);
+    }
   }
 }
 
@@ -743,6 +784,19 @@ static bool ESP32_EEPROM_begin(size_t size)
 #endif
 
   return rval;
+}
+
+static void ESP32_EEPROM_extension()
+{
+  if (settings->nmea_out == NMEA_USB) {
+    settings->nmea_out = NMEA_UART;
+  }
+  if (settings->gdl90 == GDL90_USB) {
+    settings->gdl90 = GDL90_UART;
+  }
+  if (settings->d1090 == D1090_USB) {
+    settings->d1090 = D1090_UART;
+  }
 }
 
 static void ESP32_SPI_begin()
@@ -947,7 +1001,7 @@ static void ESP32_Display_loop()
         tft->setTextFont(4);
         tft->setTextSize(2);
 
-        itoa(ThisAircraft.addr & 0xFFFFFF, buf, 16);
+        snprintf (buf, sizeof(buf), "%06X", ThisAircraft.addr);
 
         tbw = tft->textWidth(buf);
         tbh = tft->fontHeight();
@@ -1063,29 +1117,73 @@ static void ESP32_Battery_setup()
   }
 }
 
-static float ESP32_Battery_voltage()
+static float ESP32_Battery_param(uint8_t param)
 {
-  float voltage = 0.0;
+  float rval, voltage;
 
-  if ((hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
-       hw_info.revision == 8)                     ||
-       hw_info.model    == SOFTRF_MODEL_SKYWATCH) {
+  switch (param)
+  {
+  case BATTERY_PARAM_THRESHOLD:
+    rval = (hw_info.model == SOFTRF_MODEL_PRIME_MK2  && hw_info.revision ==  8) ?
+            BATTERY_THRESHOLD_LIPO + 0.1 :
+            hw_info.model == SOFTRF_MODEL_PRIME_MK2  ||
+            /* TTGO T3 V2.1.6 */
+           (hw_info.model == SOFTRF_MODEL_STANDALONE && hw_info.revision == 16) ?
+            BATTERY_THRESHOLD_LIPO : BATTERY_THRESHOLD_NIMHX2;
+    break;
 
-    /* T-Beam v08 and T-Watch have PMU */
-    if (axp.isBatteryConnect()) {
-      voltage = axp.getBattVoltage();
+  case BATTERY_PARAM_CUTOFF:
+    rval = (hw_info.model == SOFTRF_MODEL_PRIME_MK2  && hw_info.revision ==  8) ?
+            BATTERY_CUTOFF_LIPO + 0.2 :
+            hw_info.model == SOFTRF_MODEL_PRIME_MK2  ||
+            /* TTGO T3 V2.1.6 */
+           (hw_info.model == SOFTRF_MODEL_STANDALONE && hw_info.revision == 16) ?
+            BATTERY_CUTOFF_LIPO : BATTERY_CUTOFF_NIMHX2;
+    break;
+
+  case BATTERY_PARAM_CHARGE:
+    voltage = Battery_voltage();
+    if (voltage < Battery_cutoff())
+      return 0;
+
+    if (voltage > 4.2)
+      return 100;
+
+    if (voltage < 3.6) {
+      voltage -= 3.3;
+      return (voltage * 100) / 3;
     }
-  } else {
-    voltage = (float) read_voltage();
 
-    /* T-Beam v02-v07 and T3 V2.1.6 have voltage divider 100k/100k on board */
-    if (hw_info.model == SOFTRF_MODEL_PRIME_MK2   ||
-       (esp32_board   == ESP32_TTGO_V2_OLED && hw_info.revision == 16)) {
-      voltage += voltage;
+    voltage -= 3.6;
+    rval = 10 + (voltage * 150 );
+    break;
+
+  case BATTERY_PARAM_VOLTAGE:
+  default:
+    voltage = 0.0;
+
+    if ((hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
+         hw_info.revision == 8)                     ||
+         hw_info.model    == SOFTRF_MODEL_SKYWATCH) {
+
+      /* T-Beam v08 and T-Watch have PMU */
+      if (axp.isBatteryConnect()) {
+        voltage = axp.getBattVoltage();
+      }
+    } else {
+      voltage = (float) read_voltage();
+
+      /* T-Beam v02-v07 and T3 V2.1.6 have voltage divider 100k/100k on board */
+      if (hw_info.model == SOFTRF_MODEL_PRIME_MK2   ||
+         (esp32_board   == ESP32_TTGO_V2_OLED && hw_info.revision == 16)) {
+        voltage += voltage;
+      }
     }
+    rval = voltage * 0.001;
+    break;
   }
 
-  return (voltage * 0.001);
+  return rval;
 }
 
 static void IRAM_ATTR ESP32_GNSS_PPS_Interrupt_handler()
@@ -1271,6 +1369,7 @@ const SoC_ops_t ESP32_ops = {
   ESP32_getFreeHeap,
   ESP32_random,
   ESP32_Sound_test,
+  ESP32_Sound_tone,
   ESP32_maxSketchSpace,
   ESP32_WiFi_set_param,
   ESP32_WiFi_transmit_UDP,
@@ -1278,6 +1377,7 @@ const SoC_ops_t ESP32_ops = {
   ESP32_WiFi_hostname,
   ESP32_WiFi_clients_count,
   ESP32_EEPROM_begin,
+  ESP32_EEPROM_extension,
   ESP32_SPI_begin,
   ESP32_swSer_begin,
   ESP32_swSer_enableRx,
@@ -1288,7 +1388,7 @@ const SoC_ops_t ESP32_ops = {
   ESP32_Display_loop,
   ESP32_Display_fini,
   ESP32_Battery_setup,
-  ESP32_Battery_voltage,
+  ESP32_Battery_param,
   ESP32_GNSS_PPS_Interrupt_handler,
   ESP32_get_PPS_TimeMarker,
   ESP32_Baro_setup,

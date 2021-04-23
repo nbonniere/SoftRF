@@ -1,6 +1,6 @@
 /*
  * SkyView.h
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 #ifndef SKYVIEW_H
 #define SKYVIEW_H
 
-#define SKYVIEW_FIRMWARE_VERSION  "0.10"
+#define SKYVIEW_FIRMWARE_VERSION  "0.12"
 #define SKYVIEW_IDENT     "SkyView-"
 
 #define DEFAULT_AP_SSID   "SoftRF-abc123"
@@ -58,7 +58,12 @@ enum
 	SOFTRF_MODEL_UAT,
 	SOFTRF_MODEL_SKYVIEW,
 	SOFTRF_MODEL_RETRO,
-	SOFTRF_MODEL_SKYWATCH
+	SOFTRF_MODEL_SKYWATCH,
+	SOFTRF_MODEL_DONGLE,
+	SOFTRF_MODEL_MULTI,
+	SOFTRF_MODEL_UNI,
+	SOFTRF_MODEL_MINI,
+	SOFTRF_MODEL_BADGE
 };
 
 enum
@@ -67,14 +72,16 @@ enum
 	HW_REV_DEVKIT,
 	HW_REV_T5S_1_9,
 	HW_REV_T5S_2_8,
-	HW_REV_T8_1_8
+	HW_REV_T8_1_8,
+	HW_REV_T5_1
 };
 
 enum
 {
 	DISPLAY_NONE,
 	DISPLAY_EPD_2_7,
-	DISPLAY_OLED_2_4
+	DISPLAY_OLED_2_4,
+	DISPLAY_EPD_4_7
 };
 
 enum
@@ -84,7 +91,8 @@ enum
 	ADAPTER_WAVESHARE_ESP32,
 	ADAPTER_TTGO_T5S,
 	ADAPTER_NODEMCU,
-	ADAPTER_OLED
+	ADAPTER_OLED,
+	ADAPTER_TTGO_T5_4_7
 };
 
 enum

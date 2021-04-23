@@ -1,6 +1,6 @@
 /*
  * SoCHelper.h
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,6 +40,9 @@ typedef struct SoC_ops_struct {
   void (*Battery_setup)();
   float (*Battery_voltage)();
   void (*EPD_setup)();
+  void (*EPD_fini)();
+  bool (*EPD_is_ready)();
+  void (*EPD_update)(int);
   size_t (*WiFi_Receive_UDP)(uint8_t *, size_t);
   int  (*WiFi_clients_count)();
   bool (*DB_init)();

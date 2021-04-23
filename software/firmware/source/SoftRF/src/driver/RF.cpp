@@ -1,6 +1,6 @@
 /*
  * RFHelper.cpp
- * Copyright (C) 2016-2020 Linar Yusupov
+ * Copyright (C) 2016-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "RF.h"
 #include "../system/SoC.h"
 #include "EEPROM.h"
+#include "Battery.h"
 #include "../ui/Web.h"
 #if !defined(EXCLUDE_MAVLINK)
 #include "../protocol/data/MAVLink.h"
@@ -990,8 +991,12 @@ static bool sx12xx_receive()
   sx12xx_receive_complete = false;
 
   if (!sx12xx_receive_active) {
-    sx12xx_setvars();
-    sx12xx_rx(sx12xx_rx_func);
+    if (settings->power_save & POWER_SAVE_NORECEIVE) {
+      LMIC_shutdown();
+    } else {
+      sx12xx_setvars();
+      sx12xx_rx(sx12xx_rx_func);
+    }
     sx12xx_receive_active = true;
   }
 

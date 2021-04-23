@@ -1,6 +1,6 @@
 /*
  * View_Text_EPD.cpp
- * Copyright (C) 2019-2020 Linar Yusupov
+ * Copyright (C) 2019-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -163,12 +163,8 @@ static void EPD_Draw_Text()
      Serial.println(micros()-start);
 #endif
 
-    display->setPartialWindow(0, 0, display->width(), display->height());
-
     display->setFont(&FreeMonoBold12pt7b);
 
-    display->firstPage();
-    do
     {
       uint16_t x = 5;
       uint16_t y = 5;
@@ -256,9 +252,6 @@ static void EPD_Draw_Text()
 
 //      Serial.println();
     }
-    while (display->nextPage());
-
-    display->powerOff();
   }
 }
 
@@ -270,12 +263,8 @@ void EPD_text_Draw_Message(const char *msg1, const char *msg2)
 
   if (msg1 != NULL && strlen(msg1) != 0) {
 
-    display->setPartialWindow(0, 0, display->width(), display->height());
-
     display->setFont(&FreeMonoBold18pt7b);
 
-    display->firstPage();
-    do
     {
       display->fillScreen(GxEPD_WHITE);
 
@@ -302,9 +291,6 @@ void EPD_text_Draw_Message(const char *msg1, const char *msg2)
         display->print(msg2);
       }
     }
-    while (display->nextPage());
-
-    display->powerOff();
   }
 }
 
@@ -315,41 +301,34 @@ void EPD_text_setup()
 
 void EPD_text_loop()
 {
-  if (!EPD_display_frontpage) {
+  if (isTimeToDisplay() && SoC->EPD_is_ready()) {
 
-    EPD_Clear_Screen();
+    bool hasData = settings->protocol == PROTOCOL_NMEA  ? NMEA_isConnected()  :
+                   settings->protocol == PROTOCOL_GDL90 ? GDL90_isConnected() :
+                   false;
 
-    EPD_display_frontpage = true;
+    if (hasData) {
 
-  } else {
+      bool hasFix = settings->protocol == PROTOCOL_NMEA  ? isValidGNSSFix()   :
+                    settings->protocol == PROTOCOL_GDL90 ? GDL90_hasOwnShip() :
+                    false;
 
-    if (isTimeToDisplay()) {
-
-      bool hasData = settings->protocol == PROTOCOL_NMEA  ? NMEA_isConnected()  :
-                     settings->protocol == PROTOCOL_GDL90 ? GDL90_isConnected() :
-                     false;
-
-      if (hasData) {
-
-        bool hasFix = settings->protocol == PROTOCOL_NMEA  ? isValidGNSSFix()   :
-                      settings->protocol == PROTOCOL_GDL90 ? GDL90_hasOwnShip() :
-                      false;
-
-        if (hasFix) {
-          if (Traffic_Count() > 0) {
-            EPD_Draw_Text();
-          } else {
-            EPD_text_Draw_Message("NO", "TRAFFIC");
-          }
+      if (hasFix) {
+        if (Traffic_Count() > 0) {
+          EPD_Draw_Text();
         } else {
-          EPD_text_Draw_Message(NO_FIX_TEXT, NULL);
+          EPD_text_Draw_Message("NO", "TRAFFIC");
         }
       } else {
-        EPD_text_Draw_Message(NO_DATA_TEXT, NULL);
+        EPD_text_Draw_Message(NO_FIX_TEXT, NULL);
       }
-
-      EPDTimeMarker = millis();
+    } else {
+      EPD_text_Draw_Message(NO_DATA_TEXT, NULL);
     }
+
+    SoC->EPD_update(EPD_UPDATE_FAST);
+
+    EPDTimeMarker = millis();
   }
 }
 

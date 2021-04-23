@@ -1,6 +1,6 @@
 /*
  * Platform_PSoC4.h
- * Copyright (C) 2020 Linar Yusupov
+ * Copyright (C) 2020-2021 Linar Yusupov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,6 +40,8 @@
 #define snprintf_P              snprintf
 #define EEPROM_commit()         EEPROM.commit()
 
+#define LED_STATE_ON            HIGH  // State when LED is litted
+
 #if !defined(digitalPinToInterrupt)
 #define digitalPinToInterrupt(p) ( p )
 #endif
@@ -74,9 +76,6 @@ struct rst_info {
 #define swSer                 Serial
 #endif /* CubeCell_GPS */
 #define UATSerial             Serial
-
-#define SERIAL_OUT_BR         STD_OUT_BR
-#define SERIAL_OUT_BITS       -1
 
 #define SOC_ADC_VOLTAGE_DIV   2 // HTCC-AB02S has Vbat 100k/100k voltage divider
 
@@ -126,6 +125,8 @@ struct rst_info {
 #define SOC_GPIO_PIN_OLED_PWR Vext         // P3_2
 #define SOC_GPIO_PIN_BAT_CTL  VBAT_ADC_CTL // P3_3
 #define SOC_GPIO_PIN_BUTTON   USER_KEY     // P3_3
+
+#define SOC_GPIO_PIN_BMON_DIS GPIO7        // P3_7
 #else /* CubeCell_GPS */
 
 #define SOC_GPIO_PIN_LED      SOC_UNUSED_PIN
@@ -139,12 +140,13 @@ struct rst_info {
 #define EXCLUDE_TEST_MODE
 #define EXCLUDE_WATCHOUT_MODE
 #define EXCLUDE_TRAFFIC_FILTER_EXTENSION
+#define EXCLUDE_LK8EX1
 
 #define EXCLUDE_GNSS_UBLOX
 #define EXCLUDE_GNSS_SONY
 #define EXCLUDE_GNSS_MTK
 //#define EXCLUDE_GNSS_GOKE
-#define EXCLUDE_GNSS_AT65
+//#define EXCLUDE_GNSS_AT65
 
 /* Component                         Cost */
 /* -------------------------------------- */
@@ -157,13 +159,31 @@ struct rst_info {
 #define EXCLUDE_MAVLINK          //  -    kb
 #define EXCLUDE_EGM96            //  - 16 kb
 #define EXCLUDE_LED_RING         //  -    kb
+#define EXCLUDE_SOUND
 
 #define USE_BASICMAC
 #define EXCLUDE_SX1276           //  -  3 kb
 
 #if defined(CubeCell_GPS)
 #define USE_OLED                 //  +    kb
+#define EXCLUDE_OLED_BARO_PAGE
 #endif
+
+/* SoftRF/PSoC PFLAU NMEA sentence extension. In use by WebTop adapter */
+#define PFLAU_EXT1_FMT  ",%06X,%d,%d,%d"
+#define PFLAU_EXT1_ARGS ,ThisAircraft.addr,settings->rf_protocol,rx_packets_counter,tx_packets_counter
+
+/* trade performance for flash memory usage (-4 Kb) */
+#define cosf(x)                 cos  ((double) (x))
+#define sinf(x)                 sin  ((double) (x))
+/* has no effect yet */
+//#define sqrtf(x)              sqrt ((double) (x))
+//#define atan2f(y,x)           atan2((double) (y), (double) (x))
+
+/*
+ * https://github.com/HelTecAutomation/ASR650x-Arduino/commit/01fea70929a44d9339af149650e7256059098b30
+ */
+//#define BAT_MON_DISABLE
 
 #if !defined(EXCLUDE_LED_RING)
 #include <CubeCell_NeoPixel.h>
