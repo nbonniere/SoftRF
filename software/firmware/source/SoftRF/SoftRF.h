@@ -31,11 +31,7 @@
 #include <raspi/raspi.h>
 #endif /* RASPBERRY_PI */
 
-<<<<<<< HEAD
-#define SOFTRF_FIRMWARE_VERSION "RC8.1"
-=======
-#define SOFTRF_FIRMWARE_VERSION "1.0-rc9"
->>>>>>> abc8bc9e875f2182fc358a31860198d601af4670
+#define SOFTRF_FIRMWARE_VERSION "RC9.1"
 #define SOFTRF_IDENT            "SoftRF-"
 
 #define ENTRY_EXPIRATION_TIME   10 /* seconds */

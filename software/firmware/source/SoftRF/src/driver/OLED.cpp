@@ -177,13 +177,8 @@ static void OLED_radio()
 
       u8x8->drawString(1, 1, ID_text);
 
-<<<<<<< HEAD
-	snprintf (buf, 8, "%06X", ThisAircraft.addr & 0x00FFFFFF);
-    u8x8->draw2x2String(0, 2, buf);
-=======
-      snprintf (buf, sizeof(buf), "%06X", ThisAircraft.addr);
+      snprintf (buf, sizeof(buf), "%06X", ThisAircraft.addr & 0x00FFFFFF);
       u8x8->draw2x2String(0, 2, buf);
->>>>>>> abc8bc9e875f2182fc358a31860198d601af4670
 
       u8x8->drawString(8, 1, PROTOCOL_text);
 

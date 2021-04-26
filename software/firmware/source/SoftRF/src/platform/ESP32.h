@@ -236,11 +236,8 @@ struct rst_info {
 #define NMEA_TCP_SERVICE
 #define USE_NMEALIB
 #define USE_OLED
-<<<<<<< HEAD
 #define USE_OLED_TBEAM_AXP  /* to avoid using same I2C bus as AXP chip */
-=======
 //#define EXCLUDE_OLED_BARO_PAGE
->>>>>>> abc8bc9e875f2182fc358a31860198d601af4670
 #define USE_TFT
 #define USE_NMEA_CFG
 #define USE_BASICMAC
