@@ -2190,6 +2190,29 @@ int AXP20X_Class::setConstantCurrentTimeout(axp202_constant_current_t opt)
 }
 
 
+//-------------------------------------------------------
+// Direct read and Write
+//-------------------------------------------------------
+
+uint8_t AXP20X_Class::RegRead(uint8_t reg)
+{
+    uint8_t buffer;
+    if (!_init)
+        return AXP_NOT_INIT;
+    _readByte(reg, 1, &buffer);
+    return buffer;
+}
+
+
+int AXP20X_Class::RegWrite(uint8_t reg, uint8_t val)
+{
+    if (!_init)
+        return AXP_NOT_INIT;
+    _writeByte(reg, 1, &val);
+    return AXP_PASS;
+}
+
+
 
 
 

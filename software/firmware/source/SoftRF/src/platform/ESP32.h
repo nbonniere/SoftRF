@@ -155,6 +155,57 @@ extern Adafruit_NeoPixel strip;
 #define SOC_GPIO_PIN_TBEAM_SDA          13
 #define SOC_GPIO_PIN_TBEAM_SCL          2
 
+/* M5Stack Core 2 */
+#define M5StackCore2
+
+// PMU
+#define SOC_GPIO_PIN_M5C2_PMU_IRQ       SOC_UNUSED_PIN
+//UART_2
+#define SOC_GPIO_PIN_M5C2_RX_2          13
+#define SOC_GPIO_PIN_M5C2_TX_2          14
+// SPI
+#define SOC_GPIO_PIN_M5C2_MOSI          23
+#define SOC_GPIO_PIN_M5C2_MISO          38
+#define SOC_GPIO_PIN_M5C2_SCK           18
+// 1st I2C bus
+#define SOC_GPIO_PIN_M5C2_SDA_1         21
+#define SOC_GPIO_PIN_M5C2_SCL_1         22
+// 2nd I2C bus
+#define SOC_GPIO_PIN_M5C2_SDA_2         32
+#define SOC_GPIO_PIN_M5C2_SCL_2         33
+// status LED
+#define SOC_GPIO_PIN_M5C2_LED           SOC_UNUSED_PIN
+// button
+#define SOC_GPIO_PIN_M5C2_BUTTON        SOC_UNUSED_PIN
+// buzzer
+#define SOC_GPIO_PIN_M5C2_BUZZER        SOC_UNUSED_PIN)
+// TFT Display
+#define SOC_GPIO_PIN_M5C2_TFT_MOSI    23
+#define SOC_GPIO_PIN_M5C2_TFT_MISO    38
+#define SOC_GPIO_PIN_M5C2_TFT_SCK     18
+#define SOC_GPIO_PIN_M5C2_TFT_SS      5
+#define SOC_GPIO_PIN_M5C2_TFT_DC      15
+#define SOC_GPIO_PIN_M5C2_TFT_RST     SOC_UNUSED_PIN
+#define M5C2_TFT_HOR_RES                (240) //Horizontal
+#define M5C2_TFT_VER_RES                (320) //vertical
+// Touch screen
+// SD-Card
+// Audio
+// Vibration Motor
+// RTC clock
+
+// SX1276 - M029 module - LORA868 modified SS
+#define SOC_GPIO_PIN_M5C_M029_SS        19
+#define SOC_GPIO_PIN_M5C_M029_RST       26
+#define SOC_GPIO_PIN_M5C_M029_IRQ       36
+// GPS module - M003 module
+#define SOC_GPIO_PIN_M5C_M003_RX        13
+#define SOC_GPIO_PIN_M5C_M003_TX        14
+#define SOC_GPIO_PIN_M5C_M003_PPS       34
+// BMP280 module - U090 module
+#define SOC_GPIO_PIN_M5C_U090_SDA       32
+#define SOC_GPIO_PIN_M5C_U090_SCL       33
+
 /* TTGO T-Watch section */
 // GPS module
 #define SOC_GPIO_PIN_TWATCH_RX          34
@@ -211,7 +262,8 @@ enum esp32_board_id {
   ESP32_TTGO_V2_OLED,
   ESP32_HELTEC_OLED,
   ESP32_TTGO_T_BEAM,
-  ESP32_TTGO_T_WATCH
+  ESP32_TTGO_T_WATCH,
+  ESP32_M5STACK_C2
 };
 
 struct rst_info {
@@ -235,10 +287,16 @@ struct rst_info {
 
 #define NMEA_TCP_SERVICE
 #define USE_NMEALIB
+
+#if !defined(M5StackCore2)  /* leave for now because tft text is in OLED.cpp */
 #define USE_OLED
 #define USE_OLED_TBEAM_AXP  /* to avoid using same I2C bus as AXP chip */
-//#define EXCLUDE_OLED_BARO_PAGE
 #define USE_TFT
+#else /* M5StackCore2 */
+//#define EXCLUDE_M5S_LCD_BARO_PAGE
+#endif /* M5StackCore2 */
+
+//#define EXCLUDE_OLED_BARO_PAGE
 #define USE_NMEA_CFG
 #define USE_BASICMAC
 

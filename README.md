@@ -1,3 +1,21 @@
+# Initial branch to support M5Stack Core 2 module
+* Support M5Stack Core 2 AWS main module
+* support Lora 868 module (M029)
+* support GPS Ublox NEO M8 module (M003)
+* support GPS module (U032)
+
+# Differences from Main project
+
+* programmable Device ID
+* programmable ICAO flag for OGN and Legacy protocols
+* DHCP lease extension for use with Kobo eReader running XcSoar
+* PPS wire option for T-Beam boards prior to V0.8
+* Frequency hopping for OGN and Legacy
+* fix for OGN protocol timestamp
+* fix scaling VsMult scaling in Legacy protocol
+* add altitude clamp fix to Legacy protocol
+* OLED display and Pressure transducer connection on secondary I2C port to avoid using the same I2C as the AP power manager.
+
 # SoftRF &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [![Join the chat at https://gitter.im/lyusupov/SoftRF](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/lyusupov/SoftRF?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/lyusupov/SoftRF.png?branch=master)](https://travis-ci.org/lyusupov/SoftRF "Build Status") 
 Multifunctional DIY IoT-based general aviation proximity awareness system.
 

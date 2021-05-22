@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#if !defined(M5StackCore2)
+
 #if defined(ESP32)
 
 #include <SPI.h>
@@ -28,6 +30,7 @@
 #include <rom/spi_flash.h>
 #include <flashchips.h>
 #include <axp20x.h>
+#include <M5Core2.h>
 
 #include "../system/SoC.h"
 #include "../driver/Sound.h"
@@ -42,8 +45,14 @@
 #include "../protocol/data/NMEA.h"
 #include "../protocol/data/GDL90.h"
 #include "../protocol/data/D1090.h"
+#include "../driver/M5S_LCD.h"
 
 #if defined(USE_TFT)
+#if defined(M5StackCore2)
+#define USER_SETUP_LOADED /* do a custom setup */
+#include "../driver/Setup_M5Stack_C2.h"
+#else /* M5StackCore2 */
+#endif /* M5StackCore2 */
 #include <TFT_eSPI.h>
 #endif /* USE_TFT */
 
@@ -168,6 +177,9 @@ static void ESP32_setup()
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 #endif
 
+#if defined(M5StackCore2)
+    hw_info.model = SOFTRF_MODEL_M5STACK;
+#else /* M5StackCore2 */
   if (psramFound()) {
 
     uint32_t flash_id = ESP32_getFlashId();
@@ -212,6 +224,7 @@ static void ESP32_setup()
       lmic_pins.busy = SOC_GPIO_PIN_TBEAM_RF_BUSY_V08;
     }
   }
+#endif /* M5StackCore2 */
 
   ledcSetup(LEDC_CHANNEL_BUZZER, 0, LEDC_RESOLUTION_BUZZER);
 
@@ -278,6 +291,97 @@ static void ESP32_setup()
     }
     lmic_pins.rst  = SOC_GPIO_PIN_TBEAM_RF_RST_V05;
     lmic_pins.busy = SOC_GPIO_PIN_TBEAM_RF_BUSY_V08;
+
+  } else if (hw_info.model == SOFTRF_MODEL_M5STACK) {
+	  //  could be Core or Core-2; assume Core-2 for now
+    if (psramFound()) {
+      hw_info.revision = 8; // Core-2
+    } else {
+      hw_info.revision = 2; // Core
+    }
+    esp32_board = ESP32_M5STACK_C2;
+
+    M5.begin();
+
+    {
+/*
+    Wire1.begin(SOC_GPIO_PIN_M5C2_SDA_1, SOC_GPIO_PIN_M5C2_SCL_1);
+    Wire1.beginTransmission(AXP192_SLAVE_ADDRESS);
+    if (Wire1.endTransmission() == 0) {
+
+      axp.begin(Wire1, AXP192_SLAVE_ADDRESS);
+	  
+      //AXP192 30H
+//    Write1Byte(0x30, (Read8bit(0x30) & 0x04) | 0X02);
+//???    axp.gpioWrite(0x30, (gpioRead(0x30) & 0x04) | 0X02);
+//    Serial.printf("axp: vbus limit off\n");
+      axp.setCurrentLimitControl(AXP192_VBUS_LIMIT_OFF);
+
+      //AXP192 GPIO1:OD OUTPUT
+//      Write1Byte(0x92, Read8bit(0x92) & 0xf8);
+      axp.RegWrite(0x92, axp.RegRead(0x92) & 0xf8);
+//      Serial.printf("axp: gpio1 init\n");
+//      axp.setGPIOMode(AXP_GPIO_1, AXP_IO_OPEN_DRAIN_OUTPUT_MODE); // LED
+
+      //AXP192 GPIO2:OD OUTPUT
+//      Write1Byte(0x93, Read8bit(0x93) & 0xf8);
+      axp.RegWrite(0x93, axp.RegRead(0x93) & 0xf8);
+//      Serial.printf("axp: gpio2 init\n");
+//      axp.setGPIOMode(AXP_GPIO_2, AXP_IO_OPEN_DRAIN_OUTPUT_MODE); // Speaker
+
+      //AXP192 RTC CHG
+//      Write1Byte(0x35, (Read8bit(0x35) & 0x1c) | 0xa2);
+      axp.RegWrite(0x35, (axp.RegRead(0x35) & 0x1c) | 0xa2);
+//      Serial.printf("axp: rtc battery charging enabled\n");
+//      axp.setBackupChargeCurrent(AXP202_BACKUP_CURRENT_400UA); // RTC charge current
+//      axp.setBackupChargeVoltage(AXP202_BACKUP_VOLTAGE_3V6);   // RTC charge voltage
+//	    axp.setBackupChargeControl(AXP202_ON);                   // ON
+	  
+      axp.setDCDC1Voltage(3350); //       AXP192 power-on value: 3350  // MCU
+      axp.setDCDC3Voltage(2800); //       AXP192 power-on value: 2800  // LCD Backlight
+      axp.setLDO2Voltage (3300); //       AXP192 power-on value: 3300  // LCD, peripherals
+      axp.setLDO3Voltage (2000); //       AXP192 power-on value: 2000  // VIB Motor
+
+      axp.setPowerOutPut(AXP192_LDO2,  AXP202_ON);
+//      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+      axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON); // LCD Backlight
+      axp.gpioWrite(AXP_GPIO_1, AXP202_ON);        // LED ON
+	  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON); // +5V
+	  
+      axp.setChargeControlCur(100);                // 100mA;
+
+      //AXP192 GPIO4
+      //Write1Byte(0X95, (Read8bit(0x95) & 0x72) | 0X84);
+      axp.RegWrite(0X95, (axp.RegRead(0x95) & 0x72) | 0X84);
+      //axp.setGPIOMode(AXP_GPIO_4, AXP_IO_OPEN_DRAIN_OUTPUT_MODE); // LCD reset
+
+      //AXP192 PowerOK
+      //Write1Byte(0X36, 0X4C);
+//???    axp.gpioWrite(0X36, 0X4C); 
+
+      //AXP192 ADC_EN1
+      //Write1Byte(0x82,0xff);  // read all
+      axp.RegWrite(0x82,0xff);
+//      axp.adc1Enable(0xff, 1);
+//      axp.adc1Enable(AXP202_BATT_VOL_ADC1, AXP202_ON);  // enable BAT voltage reading
+	
+      //SetLCDRSet(0);
+      axp.RegWrite(0X96, (axp.RegRead(0x96) & ~0X02));
+   axp.RegWrite(0X95, (axp.RegRead(0x95) & ~0X80));
+      delay(100);
+      //SetLCDRSet(1);
+      axp.RegWrite(0X96, (axp.RegRead(0x96) | 0X02));
+   axp.RegWrite(0X95, (axp.RegRead(0x95) | 0X80));
+      delay(100);
+
+      //  bus power mode_output
+      //SetBusPowerMode(mode);
+*/
+      lmic_pins.nss  = SOC_GPIO_PIN_M5C_M029_SS;
+      lmic_pins.rst  = SOC_GPIO_PIN_M5C_M029_RST;
+      lmic_pins.busy = LMIC_UNUSED_PIN;
+      lmic_pins.dio[0] = SOC_GPIO_PIN_M5C_M029_IRQ;
+    }
   }
 }
 
@@ -327,6 +431,13 @@ static void ESP32_post_init()
     OLED_info1();
     break;
 #endif /* USE_OLED */
+
+#if defined(M5StackCore2)
+  case DISPLAY_M5S_C2:
+    M5S_LCD_info1();
+    break;
+#endif /* M5StackCore2 */
+
   case DISPLAY_NONE:
   default:
     break;
@@ -386,6 +497,13 @@ static void ESP32_loop()
         axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
       }
     }
+  } else {
+    if (hw_info.model == SOFTRF_MODEL_M5STACK) {
+      M5.update();
+      if(M5.BtnA.wasPressed()) {
+        M5S_LCD_Next_Page();		  
+	  }
+	}
   }
 }
 
@@ -436,10 +554,13 @@ static void ESP32_fini(int reason)
     axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);
     axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
 
+#if defined(USE_OLED)
     /* workaround against AXP I2C access blocking by 'noname' OLED */
     if (u8x8 == NULL) {
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);
     }
+#endif /* USE_OLED) */
+
     axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
 
     delay(20);
@@ -801,16 +922,32 @@ static void ESP32_EEPROM_extension()
 
 static void ESP32_SPI_begin()
 {
-  if (esp32_board != ESP32_TTGO_T_WATCH) {
-    SPI.begin(SOC_GPIO_PIN_SCK, SOC_GPIO_PIN_MISO, SOC_GPIO_PIN_MOSI, SOC_GPIO_PIN_SS);
+  if (esp32_board == ESP32_M5STACK_C2) {
+    SPI.begin(SOC_GPIO_PIN_M5C2_SCK, SOC_GPIO_PIN_M5C2_MISO, SOC_GPIO_PIN_M5C2_MOSI, -1);
   } else {
-    SPI.begin(SOC_GPIO_PIN_TWATCH_TFT_SCK, SOC_GPIO_PIN_TWATCH_TFT_MISO,
-              SOC_GPIO_PIN_TWATCH_TFT_MOSI, -1);
-  }
+    if (esp32_board == ESP32_TTGO_T_WATCH) {
+      SPI.begin(SOC_GPIO_PIN_TWATCH_TFT_SCK, SOC_GPIO_PIN_TWATCH_TFT_MISO,
+                SOC_GPIO_PIN_TWATCH_TFT_MOSI, -1);
+    } else {
+      SPI.begin(SOC_GPIO_PIN_SCK, SOC_GPIO_PIN_MISO, SOC_GPIO_PIN_MOSI, SOC_GPIO_PIN_SS);
+    }
+  }	
 }
 
 static void ESP32_swSer_begin(unsigned long baud)
 {
+  if (hw_info.model == SOFTRF_MODEL_M5STACK) {
+
+    Serial.print(F("INFO: M5Stack rev. 0"));
+    Serial.print(hw_info.revision);
+    Serial.println(F(" is detected."));
+
+    if (hw_info.revision == 8) { // Core-2
+      swSer.begin(baud, SERIAL_IN_BITS, SOC_GPIO_PIN_M5C2_RX_2, SOC_GPIO_PIN_M5C2_TX_2);
+//    } else { // Core
+//      swSer.begin(baud, SERIAL_IN_BITS, SOC_GPIO_PIN_TBEAM_V05_RX, SOC_GPIO_PIN_TBEAM_V05_TX);
+    }
+  } else {
   if (hw_info.model == SOFTRF_MODEL_PRIME_MK2) {
 
     Serial.print(F("INFO: TTGO T-Beam rev. 0"));
@@ -838,6 +975,7 @@ static void ESP32_swSer_begin(unsigned long baud)
     }
   }
 
+  }
   /* Default Rx buffer size (256 bytes) is sometimes not big enough */
   // swSer.setRxBufferSize(512);
 
@@ -855,7 +993,9 @@ static byte ESP32_Display_setup()
 {
   byte rval = DISPLAY_NONE;
 
-  if (esp32_board != ESP32_TTGO_T_WATCH) {
+//  if (esp32_board != ESP32_TTGO_T_WATCH) {
+  if ((esp32_board != ESP32_TTGO_T_WATCH) &&
+      (esp32_board != ESP32_M5STACK_C2)) {
 
 #if defined(USE_OLED)
     /* SSD1306 I2C OLED probing */
@@ -919,9 +1059,10 @@ static byte ESP32_Display_setup()
     }
 #endif /* USE_OLED */
 
-  } else {  /* ESP32_TTGO_T_WATCH */
+  } else {  /* ESP32_TTGO_T_WATCH or M5Stack */
 
 #if defined(USE_TFT)
+ Serial.println(F("TFT display"));
     ESP32_SPI_begin();
 
     tft = new TFT_eSPI(LV_HOR_RES, LV_VER_RES);
@@ -948,6 +1089,23 @@ static byte ESP32_Display_setup()
 
     rval = DISPLAY_TFT_TTGO;
 #endif /* USE_TFT */
+
+#if defined(M5StackCore2)
+    M5.Lcd.fillScreen(WHITE);
+    M5.Lcd.setTextSize(2);
+//    M5.Lcd.setTextColor(RED);         // transparent background
+    M5.Lcd.setTextColor(RED, WHITE);  // White background
+    M5.Lcd.setCursor(10, 10);
+    M5.Lcd.print(SoftRF_text);
+//    M5.Lcd.setTextColor(BLACK);         // transparent background
+    M5.Lcd.setTextColor(BLACK, WHITE);  // White background
+    M5.Lcd.setCursor(10, 26);
+    M5.Lcd.print(SOFTRF_FIRMWARE_VERSION);
+    M5.Lcd.setCursor(10, 42);
+	M5.Lcd.print(ISO3166_CC[settings->band]);
+
+    rval = DISPLAY_M5S_C2;
+#endif /* M5StackCore2 */
   }
 
   return rval;
@@ -1026,6 +1184,8 @@ static void ESP32_Display_loop()
         TFT_display_frontpage = true;
 
       } else { /* TFT_display_frontpage */
+//Serial.println(TFT_DC);
+//Serial.println(F("TFT - loop"));
 
         if (rx_packets_counter > prev_rx_packets_counter) {
           disp_value = rx_packets_counter % 1000;
@@ -1080,6 +1240,12 @@ static void ESP32_Display_loop()
     break;
 #endif /* USE_OLED */
 
+#if defined(M5StackCore2)
+  case DISPLAY_M5S_C2:
+    M5S_LCD_loop();
+    break;
+#endif /* M5StackCore2 */
+
   case DISPLAY_NONE:
   default:
     break;
@@ -1104,8 +1270,9 @@ static void ESP32_Display_fini(int reason)
 static void ESP32_Battery_setup()
 {
   if ((hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
-       hw_info.revision == 8)                     ||
-       hw_info.model    == SOFTRF_MODEL_SKYWATCH) {
+       hw_info.revision == 8)                      ||
+      (hw_info.model    == SOFTRF_MODEL_M5STACK)   ||
+      (hw_info.model    == SOFTRF_MODEL_SKYWATCH)) {
 
     /* T-Beam v08 and T-Watch have PMU */
 
@@ -1162,24 +1329,28 @@ static float ESP32_Battery_param(uint8_t param)
   default:
     voltage = 0.0;
 
-    if ((hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
+    if (hw_info.model    == SOFTRF_MODEL_M5STACK) {
+	  rval = M5.Axp.GetBatVoltage();
+	} else { 
+	  if ((hw_info.model    == SOFTRF_MODEL_PRIME_MK2 &&
          hw_info.revision == 8)                     ||
-         hw_info.model    == SOFTRF_MODEL_SKYWATCH) {
+        (hw_info.model    == SOFTRF_MODEL_SKYWATCH)) {
 
-      /* T-Beam v08 and T-Watch have PMU */
-      if (axp.isBatteryConnect()) {
-        voltage = axp.getBattVoltage();
-      }
-    } else {
-      voltage = (float) read_voltage();
+        /* T-Beam v08 and T-Watch have PMU */
+        if (axp.isBatteryConnect()) {
+          voltage = axp.getBattVoltage();
+        }
+      } else {
+        voltage = (float) read_voltage();
 
-      /* T-Beam v02-v07 and T3 V2.1.6 have voltage divider 100k/100k on board */
-      if (hw_info.model == SOFTRF_MODEL_PRIME_MK2   ||
-         (esp32_board   == ESP32_TTGO_V2_OLED && hw_info.revision == 16)) {
-        voltage += voltage;
+        /* T-Beam v02-v07 and T3 V2.1.6 have voltage divider 100k/100k on board */
+        if (hw_info.model == SOFTRF_MODEL_PRIME_MK2   ||
+           (esp32_board   == ESP32_TTGO_V2_OLED && hw_info.revision == 16)) {
+          voltage += voltage;
+        }
       }
+      rval = voltage * 0.001;
     }
-    rval = voltage * 0.001;
     break;
   }
 
@@ -1204,7 +1375,12 @@ static unsigned long ESP32_get_PPS_TimeMarker()
 
 static bool ESP32_Baro_setup()
 {
-  if (hw_info.model == SOFTRF_MODEL_SKYWATCH) {
+  if (hw_info.model == SOFTRF_MODEL_M5STACK) {
+    Wire.begin(SOC_GPIO_PIN_M5C2_SDA_2, SOC_GPIO_PIN_M5C2_SCL_2);
+    if (Baro_probe())
+      return true;
+	  
+  } else if (hw_info.model == SOFTRF_MODEL_SKYWATCH) {
 
     return false;
 
@@ -1247,7 +1423,6 @@ static bool ESP32_Baro_setup()
     return false;
 #endif
   }
-
   return true;
 }
 
@@ -1402,3 +1577,5 @@ const SoC_ops_t ESP32_ops = {
 };
 
 #endif /* ESP32 */
+
+#endif /* M5StackCore2 */

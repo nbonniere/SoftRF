@@ -892,6 +892,9 @@ public:
     // Set timeout in constant current mode
     int         setConstantCurrentTimeout(axp202_constant_current_t opt);
 
+    // direct register access
+    uint8_t     RegRead(uint8_t reg);
+    int         RegWrite(uint8_t reg, uint8_t val);
 
 private:
     uint16_t _getRegistH8L5(uint8_t regh8, uint8_t regl5);
