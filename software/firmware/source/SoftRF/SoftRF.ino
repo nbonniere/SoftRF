@@ -372,7 +372,7 @@ void normal()
 #endif /* ENABLE_AHRS */
 
   GNSS_loop();
-
+  
   ThisAircraft.timestamp = now();
   if (isValidFix()) {
     ThisAircraft.latitude = gnss.location.lat();
@@ -382,6 +382,9 @@ void normal()
     ThisAircraft.speed = gnss.speed.knots();
     ThisAircraft.hdop = (uint16_t) gnss.hdop.value();
     ThisAircraft.geoid_separation = gnss.separation.meters();
+    ThisAircraft.flying = flying;
+    ThisAircraft.turning = turning;
+    ThisAircraft.turnRate = Rotation_Rate;
 
 #if !defined(EXCLUDE_EGM96)
     /*

@@ -44,6 +44,15 @@
 unsigned long GNSSTimeSyncMarker = 0;
 volatile unsigned long PPS_TimeMarker = 0;
 
+double Heading = 0.0;
+double Prev_Heading = 0.0;
+volatile double Rotation_Rate = 0.0;
+double Prev_Rotation_Rate = 0.0;
+double Speed = 0.0;
+double Prev_Speed = 0.0;
+volatile unsigned int turning = 1;
+volatile unsigned int flying = 0;
+
 #if 0
 unsigned long GGA_Start_Time_Marker = 0;
 unsigned long GGA_Stop_Time_Marker = 0;
@@ -97,6 +106,8 @@ TinyGPSCustom C_D1090_Output (gnss, "PSRFC", 16);
 TinyGPSCustom C_Stealth      (gnss, "PSRFC", 17);
 TinyGPSCustom C_noTrack      (gnss, "PSRFC", 18);
 TinyGPSCustom C_PowerSave    (gnss, "PSRFC", 19);
+TinyGPSCustom C_Heading      (gnss, "GPRMC", 8); // NICK - for independent "updated" flag
+
 
 static uint8_t C_NMEA_Source;
 
@@ -1033,7 +1044,7 @@ void GNSS_loop()
 
   GNSSTimeSync();
 
-  const gnss_chip_ops_t *gnss = NULL;
+  const gnss_chip_ops_t *gnssOPS = NULL;
 
   switch (hw_info.gnss)
   {
@@ -1041,37 +1052,101 @@ void GNSS_loop()
   case GNSS_MODULE_U6:
   case GNSS_MODULE_U7:
   case GNSS_MODULE_U8:
-    gnss = &ublox_ops;
+    gnssOPS = &ublox_ops;
     break;
 #endif /* EXCLUDE_GNSS_UBLOX */
 #if !defined(EXCLUDE_GNSS_SONY)
   case GNSS_MODULE_SONY:
-    gnss = &sony_ops;
+    gnssOPS = &sony_ops;
     break;
 #endif /* EXCLUDE_GNSS_SONY */
 #if !defined(EXCLUDE_GNSS_MTK)
   case GNSS_MODULE_MT33:
-    gnss = &mtk_ops;
+    gnssOPS = &mtk_ops;
     break;
 #endif /* EXCLUDE_GNSS_MTK */
 #if !defined(EXCLUDE_GNSS_GOKE)
   case GNSS_MODULE_GOKE:
-    gnss = &goke_ops;
+    gnssOPS = &goke_ops;
     break;
 #endif /* EXCLUDE_GNSS_GOKE */
 #if !defined(EXCLUDE_GNSS_AT65)
   case GNSS_MODULE_AT65:
-    gnss = &at65_ops;
+    gnssOPS = &at65_ops;
     break;
 #endif /* EXCLUDE_GNSS_AT65 */
   case GNSS_MODULE_NMEA:
-    gnss = &generic_nmea_ops;
+    gnssOPS = &generic_nmea_ops;
     break;
   default:
     break;
   }
 
-  if (gnss) gnss->loop();
+  if (gnssOPS) gnssOPS->loop();
+
+  //NICK - test
+  if (C_Heading.isUpdated()) {
+//    Serial.print(F("Heading: "));
+//	Serial.println(C_Heading.value());
+	if (strlen(C_Heading.value()) == 0) {
+      Heading = 0;
+	} else {  
+      Heading = atof(C_Heading.value());
+	}
+    Rotation_Rate = (Heading - Prev_Heading);  // assumes time = 1 sec
+    Prev_Heading = Heading;
+
+    // Normalize
+    if (Rotation_Rate >= 180){
+      Rotation_Rate -= 360;
+    } else {
+      if (Rotation_Rate < -180){
+        Rotation_Rate += 360;
+      }
+    }
+
+    // Do some averaging
+    Rotation_Rate = 0.4 * (Rotation_Rate /* / TIME */ ) + (1.0 - 0.4) * Prev_Rotation_Rate;
+    Prev_Rotation_Rate = Rotation_Rate;
+
+    // Set the turning flag with some hysteresis
+    switch (turning) {
+    case 1: 
+      if (Rotation_Rate >= 18) {  // turn right
+        turning = 0;
+      } else {
+        if (Rotation_Rate < -18) {  // turn left
+          turning = 3;
+        }
+      }
+      break;
+    case 0:
+      if (Rotation_Rate < 10) {
+        turning = 1;
+      }
+      break;	
+    case 3:
+      if (Rotation_Rate >= -10) {
+        turning = 1;
+      }    
+    }
+  
+    // Do some averaging
+    Speed = 0.4 * gnss.speed.knots() + (1.0 - 0.4) * Prev_Speed;
+    Prev_Speed = Speed;
+
+    // Some hysteresis  
+    if (flying == 0) {
+      if (Speed >= 35) { // 35 kts ?
+	    flying = 1;
+  	  }
+    } else {  // flying == 1
+      if (Speed < 2) {  // 2 Kts ?
+	    flying = 0;
+      }
+    }
+
+  }
 }
 
 void GNSS_fini()
