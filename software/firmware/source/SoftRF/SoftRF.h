@@ -31,7 +31,7 @@
 #include <raspi/raspi.h>
 #endif /* RASPBERRY_PI */
 
-#define SOFTRF_FIRMWARE_VERSION "RC9.1"
+#define SOFTRF_FIRMWARE_VERSION "RC9.2d"
 #define SOFTRF_IDENT            "SoftRF-"
 
 #define ENTRY_EXPIRATION_TIME   10 /* seconds */
@@ -121,6 +121,7 @@ typedef struct UFO {
     float     pressure_altitude;
     float     course;     /* CoG */
     float     speed;      /* ground speed in knots */
+    float     turnRate;   /* deg per sec */
     uint8_t   aircraft_type;
 
     float     vs; /* feet per minute */
@@ -128,7 +129,10 @@ typedef struct UFO {
     bool      stealth;
     bool      no_track;
 
-    int8_t    ns[4];
+    int8_t    flying;   // >= 25 knots
+    int8_t    turning;  // 0 right, 1 straight, 3 left
+
+    int8_t    ns[4];    // not really needed, use turnRate instead
     int8_t    ew[4];
 
     float     geoid_separation; /* metres */

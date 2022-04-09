@@ -52,6 +52,10 @@ const rf_proto_desc_t legacy_proto_desc = {
   .tx_interval_max  = LEGACY_TX_INTERVAL_MAX
 };
 
+// 0 - Glider, 1 Power-plane
+//const int32_t EP[2][4] = {2,3,2,2,2,4,4,4}; // {2, 2+3, 2+3+2, 2+3+2+2}, {2, 2+4, 2+4+4, 2+4+4+4}
+const int32_t EP[2][4] = {2,2,2,2,2,4,4,4}; // {2, 2+2, 2+2+2, 2+2+2+2}, {2, 2+4, 2+4+4, 2+4+4+4}
+
 /* http://en.wikipedia.org/wiki/XXTEA */
 void btea(uint32_t *v, int8_t n, const uint32_t key[4]) {
     uint32_t y, z, sum;
@@ -181,10 +185,21 @@ bool legacy_decode(void *legacy_pkt, ufo_t *this_aircraft, ufo_t *fop) {
     fop->aircraft_type = pkt->aircraft_type;
     fop->stealth = pkt->stealth;
     fop->no_track = pkt->no_track;
-    fop->ns[0] = pkt->ns[0]; fop->ns[1] = pkt->ns[1];
-    fop->ns[2] = pkt->ns[2]; fop->ns[3] = pkt->ns[3];
-    fop->ew[0] = pkt->ew[0]; fop->ew[1] = pkt->ew[1];
-    fop->ew[2] = pkt->ew[2]; fop->ew[3] = pkt->ew[3];
+    fop->flying = pkt->airborne;
+    fop->turning = pkt->turning;
+//    fop->ns[0] = pkt->ns[0]; fop->ns[1] = pkt->ns[1];  // not needed
+//    fop->ns[2] = pkt->ns[2]; fop->ns[3] = pkt->ns[3];
+//    fop->ew[0] = pkt->ew[0]; fop->ew[1] = pkt->ew[1];
+//    fop->ew[2] = pkt->ew[2]; fop->ew[3] = pkt->ew[3];
+    float turnRate = atan2f(pkt->ew[2],pkt->ns[2]) - atan2f(pkt->ew[1],pkt->ns[1]);
+    if (turnRate > PI) {
+	  turnRate -= 2* PI;
+	} else {
+      if (turnRate <= -PI) {
+	    turnRate += 2* PI;
+	  }
+    }		
+    fop->turnRate = turnRate * 180 / PI / EP[0][1]; // depends on aircraft type
 
     return true;
 }
@@ -204,6 +219,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     uint32_t timestamp = (uint32_t) this_aircraft->timestamp;
 
     float course = this_aircraft->course;
+    float turnRate = this_aircraft->turnRate;
     float speedf = this_aircraft->speed * _GPS_MPS_PER_KNOT; /* m/s */
     float vsf = this_aircraft->vs / (_GPS_FEET_PER_METER * 60.0); /* m/s */
 
@@ -237,8 +253,67 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
 
     uint8_t speed = speed4;
 
-    int8_t ns = (int8_t) (speed * cosf(radians(course)));
-    int8_t ew = (int8_t) (speed * sinf(radians(course)));
+    // extrapolate forwards 2 seconds
+    // but first calculate Lat, Long, using tangent halfway, i.e. 1 second
+    course = course + 1 * turnRate;
+	float MperDeg = 6371*1000*2*PI/360;
+    lat = lat + (speedf * 2 / MperDeg * cosf(radians(course)));
+    lon = lon + (speedf * 2 / MperDeg * sinf(radians(course)))/cosf(radians(lat));
+	// next do heading at 2 seconds, i.e. one more after tangent
+    course = course + 1 * turnRate;
+    // Normalize
+    if (course >= 360){
+      course -= 360;
+    } else {
+      if (course < 0){
+        course += 360;
+      }
+    }
+    // calculate NS, EW
+    pkt->ns[0] = (int8_t) (speed * cosf(radians(course)));
+    pkt->ew[0] = (int8_t) (speed * sinf(radians(course)));
+
+    // extrapolate forwards 4 more seconds
+    course = course + EP[0][1] * turnRate;
+    // Normalize
+    if (course >= 360){
+      course -= 360;
+    } else {
+      if (course < 0){
+        course += 360;
+      }
+    }
+    // calculate NS, EW
+    pkt->ns[1] = (int8_t) (speed * cosf(radians(course)));
+    pkt->ew[1] = (int8_t) (speed * sinf(radians(course)));
+
+    // extrapolate forwards 4 more seconds
+    course = course + EP[0][2] * turnRate;
+    // Normalize
+    if (course >= 360){
+      course -= 360;
+    } else {
+      if (course < 0){
+        course += 360;
+      }
+    }
+    // calculate NS, EW
+    pkt->ns[2] = (int8_t) (speed * cosf(radians(course)));
+    pkt->ew[2] = (int8_t) (speed * sinf(radians(course)));
+
+    // extrapolate forwards 4 more seconds
+    course = course + EP[0][3] * turnRate;
+    // Normalize
+    if (course >= 360){
+      course -= 360;
+    } else {
+      if (course < 0){
+        course += 360;
+      }
+    }
+    // calculate NS, EW
+    pkt->ns[3] = (int8_t) (speed * cosf(radians(course)));
+    pkt->ew[3] = (int8_t) (speed * sinf(radians(course)));
 
     pkt->vs = vs10;
     pkt->addr = id & 0x00FFFFFF;
@@ -256,7 +331,9 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
 
     pkt->aircraft_type = this_aircraft->aircraft_type;
 
-    pkt->gps = 323;
+//    pkt->gps = 323;
+    pkt->HPE = 3;
+    pkt->VPE = 5;
 
     pkt->lat = (uint32_t ( lat * 1e7) >> 7) & 0x7FFFF;
     pkt->lon = (uint32_t ( lon * 1e7) >> 7) & 0xFFFFF;
@@ -271,13 +348,16 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
       }
 	}
 
-    pkt->airborne = speed > 0 ? 1 : 0;
-    pkt->ns[0] = ns; pkt->ns[1] = ns; pkt->ns[2] = ns; pkt->ns[3] = ns;
-    pkt->ew[0] = ew; pkt->ew[1] = ew; pkt->ew[2] = ew; pkt->ew[3] = ew;
+//    pkt->airborne = speed > 0 ? 1 : 0;
+    pkt->airborne = this_aircraft->flying;
+
+//    pkt->ns[0] = ns; pkt->ns[1] = ns; pkt->ns[2] = ns; pkt->ns[3] = ns;
+//    pkt->ew[0] = ew; pkt->ew[1] = ew; pkt->ew[2] = ew; pkt->ew[3] = ew;
 
     pkt->_unk0 = 0;
     pkt->_unk1 = 0;
-    pkt->_unk2 = 1;
+//    pkt->_unk2 = 1;
+    pkt->turning = this_aircraft->turning;
     pkt->_unk3 = 0;
 //    pkt->_unk4 = 0;
 

@@ -67,4 +67,8 @@ extern TinyGPSPlus gnss;
 extern volatile unsigned long PPS_TimeMarker;
 extern const char *GNSS_name[];
 
+extern volatile double Rotation_Rate;
+extern volatile unsigned int turning;
+extern volatile unsigned int flying;
+
 #endif /* GNSSHELPER_H */

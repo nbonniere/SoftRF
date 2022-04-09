@@ -112,12 +112,15 @@ typedef struct {
     // unsigned int magic:8;
     /********************/
     int vs:10;
-    unsigned int _unk2:2;
+//    unsigned int _unk2:2;
+    unsigned int turning:2;  // 0 right, 1 straight, 3 left
     unsigned int airborne:1;
     unsigned int stealth:1;
     unsigned int no_track:1;
     unsigned int parity:1;
-    unsigned int gps:12;
+//    unsigned int gps:12;
+    unsigned int VPE:6;
+    unsigned int HPE:6;
     unsigned int aircraft_type:4;
     /********************/
     unsigned int lat:19;
