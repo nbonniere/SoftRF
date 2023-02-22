@@ -62,8 +62,10 @@ static void EPD_Draw_Text()
       EPD_current = j;
     }
 
-    bearing = (int) atan2f(traffic[EPD_current - 1].fop->RelativeNorth,
-                           traffic[EPD_current - 1].fop->RelativeEast) * 180.0 / PI;  /* -180 ... 180 */
+    bearing = (int) (atan2f(traffic[EPD_current - 1].fop->RelativeNorth,
+                           traffic[EPD_current - 1].fop->RelativeEast) * 180.0 / PI);  /* -180 ... 180 */
+						   
+    int brg = bearing;						   
 
     /* convert from math angle into course relative to north */
     bearing = (bearing <= 90 ? 90 - bearing :
@@ -79,6 +81,21 @@ static void EPD_Draw_Text()
     }
 
     int oclock = ((bearing + 15) % 360) / 30;
+
+      Serial.print(F("Debug "));
+      Serial.print(traffic[EPD_current - 1].fop->RelativeNorth);
+      Serial.print(F(" , "));
+      Serial.print(traffic[EPD_current - 1].fop->RelativeEast);
+      Serial.print(F(" , "));
+      Serial.print(brg);
+      Serial.print(F(" , "));
+      Serial.print(ThisAircraft.Track);
+      Serial.print(F(" , "));
+      Serial.print(bearing);
+      Serial.print(F(" , "));
+      Serial.println(oclock);
+      Serial.flush();
+
 
     if (settings->adb == DB_AUTO) {
       switch (traffic[EPD_current - 1].fop->IDType)
