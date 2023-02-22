@@ -82,6 +82,7 @@ static void EPD_Draw_Text()
 
     int oclock = ((bearing + 15) % 360) / 30;
 
+#if 0
       Serial.print(F("Debug "));
       Serial.print(traffic[EPD_current - 1].fop->RelativeNorth);
       Serial.print(F(" , "));
@@ -95,7 +96,7 @@ static void EPD_Draw_Text()
       Serial.print(F(" , "));
       Serial.println(oclock);
       Serial.flush();
-
+#endif
 
     if (settings->adb == DB_AUTO) {
       switch (traffic[EPD_current - 1].fop->IDType)
