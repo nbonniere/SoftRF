@@ -41,6 +41,23 @@ static navbox_t navbox4;
 
 static int EPD_zoom = ZOOM_MEDIUM;
 
+#define ICON_AIRPLANE
+
+#if defined(ICON_AIRPLANE)
+//#define ICON_AIRPLANE_POINTS 6
+//const int16_t epd_Airplane[ICON_AIRPLANE_POINTS][2] = {{0,-4},{0,10},{-8,0},{8,0},{-3,8},{3,8}};
+#define ICON_AIRPLANE_POINTS 12
+const int16_t epd_Airplane[ICON_AIRPLANE_POINTS][2] = {{0,-4},{0,10},{-8,0},{9,0},{-3,8},{4,8},{1,-4},{1,10},{-10,1},{11,1},{-2,9},{3,9}};
+#else  //ICON_AIRPLANE
+#define ICON_ARROW_POINTS 4
+const int16_t epd_Arrow[ICON_ARROW_POINTS][2] = {{-6,5},{0,-6},{6,5},{0,2}};
+#endif //ICON_AIRPLANE
+#define ICON_TARGETS_POINTS 4
+const int16_t epd_Target[ICON_TARGETS_POINTS][2] = {{4,4},{0,-6},{-4,4},{-5,-3}};
+
+#define MAX_DRAW_POINTS 12
+
+
 static void EPD_Draw_NavBoxes()
 {
   int16_t  tbx, tby;
@@ -175,6 +192,15 @@ void EPD_radar_Draw_Message(const char *msg1, const char *msg2)
   }
 }
 
+// 2D rotation
+static void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin)
+{
+    float tTemp;
+	tTemp = tX * tCos + tY * -tSin;
+    tY = tX * tSin + tY *  tCos;
+    tX = tTemp;
+}
+
 static void EPD_Draw_Radar()
 {
   int16_t  tbx, tby;
@@ -198,6 +224,8 @@ static void EPD_Draw_Radar()
   uint16_t radar_center_x = radar_w / 2;
   uint16_t radar_center_y = radar_y + radar_w / 2;
   uint16_t radius = radar_w / 2 - 2;
+
+  float epd_Points[MAX_DRAW_POINTS][2];
 
   if (settings->units == UNITS_METRIC || settings->units == UNITS_MIXED) {
     switch(EPD_zoom)
@@ -236,16 +264,29 @@ static void EPD_Draw_Radar()
   }
 
   {
+    float trSin = sin(radians(-ThisAircraft.Track));
+    float trCos = cos(radians(-ThisAircraft.Track));
+	
     for (int i=0; i < MAX_TRACKING_OBJECTS; i++) {
       if (Container[i].ID && (now() - Container[i].timestamp) <= EPD_EXPIRATION_TIME) {
 
         float rel_x;
         float rel_y;
-        float distance;
-        float bearing;
+        float tgtSin;
+        float tgtCos;
 
         bool isTeam = (Container[i].ID == settings->team) ;
 
+        rel_x = Container[i].RelativeEast;
+        rel_y = Container[i].RelativeNorth;
+        tgtSin = sin(radians(Container[i].Track));
+        tgtCos = cos(radians(Container[i].Track));
+		
+		for (int i=0; i < ICON_TARGETS_POINTS; i++) {
+		  epd_Points[i][0] = (float) epd_Target[i][0];
+		  epd_Points[i][1] = (float) epd_Target[i][1];
+		  EPD_2D_Rotate(epd_Points[i][0], epd_Points[i][1], tgtCos, tgtSin);
+	    }
 #if 0
         Serial.print(F(" ID="));
         Serial.print((Container[i].ID >> 16) & 0xFF, HEX);
@@ -256,116 +297,143 @@ static void EPD_Draw_Radar()
         Serial.print(F(" RelativeNorth=")); Serial.println(Container[i].RelativeNorth);
         Serial.print(F(" RelativeEast="));  Serial.println(Container[i].RelativeEast);
 #endif
-        switch (settings->orientation)
-        {
-        case DIRECTION_NORTH_UP:
-          rel_x = Container[i].RelativeEast;
-          rel_y = Container[i].RelativeNorth;
-          break;
-        case DIRECTION_TRACK_UP:
-          distance = sqrtf(Container[i].RelativeNorth * Container[i].RelativeNorth +
-                           Container[i].RelativeEast  * Container[i].RelativeEast);
-
-          bearing = atan2f(Container[i].RelativeNorth,
-                           Container[i].RelativeEast) * 180.0 / PI;  /* -180 ... 180 */
-
-          /* convert from math angle into course relative to north */
-          bearing = (bearing <= 90.0 ? 90.0 - bearing :
-                                      450.0 - bearing);
-
-          bearing -= ThisAircraft.Track;
-
-          rel_x = distance * sin(radians(bearing));
-          rel_y = distance * cos(radians(bearing));
-
-          break;
-        default:
-          /* TBD */
-          break;
+        switch (settings->orientation) {
+          case DIRECTION_NORTH_UP:
+            break;
+          case DIRECTION_TRACK_UP:
+		    // rotate relative to ThisAircraft.Track
+            EPD_2D_Rotate(rel_x, rel_y, trCos, trSin);
+		    for (int i=0; i < ICON_TARGETS_POINTS; i++) {
+		      EPD_2D_Rotate(epd_Points[i][0], epd_Points[i][1], trCos, -trSin);
+	        }
+            break;
+          default:
+            /* TBD */
+            break;
         }
+
+#if 0
+      Serial.print(F("Debug "));
+      Serial.print(trSin);
+      Serial.print(F(", "));
+      Serial.print(trCos);
+      Serial.print(F(", "));
+      Serial.print(rel_x);
+      Serial.print(F(", "));
+      Serial.print(rel_y);
+      Serial.println();
+      Serial.flush();
+#endif
+#if 0
+      Serial.print(F("Debug "));
+      Serial.print(tgtSin);
+      Serial.print(F(", "));
+      Serial.print(tgtCos);
+      Serial.print(F(", "));
+      Serial.print(epd_Points[1][0]);
+      Serial.print(F(", "));
+      Serial.print(epd_Points[1][1]);
+      Serial.println();
+      Serial.flush();
+#endif
+
 
         int16_t x = constrain((rel_x * radius) / divider, -32768, 32767);
         int16_t y = constrain((rel_y * radius) / divider, -32768, 32767);
 
-        if        (Container[i].RelativeVertical >   EPD_RADAR_V_THRESHOLD) {
-          if (isTeam) {
-            display->drawTriangle(radar_center_x + x - 5, radar_center_y - y + 4,
-                                  radar_center_x + x    , radar_center_y - y - 6,
-                                  radar_center_x + x + 5, radar_center_y - y + 4,
-                                  GxEPD_BLACK);
-            display->drawTriangle(radar_center_x + x - 6, radar_center_y - y + 5,
-                                  radar_center_x + x    , radar_center_y - y - 7,
-                                  radar_center_x + x + 6, radar_center_y - y + 5,
-                                  GxEPD_BLACK);
-          } else {
-            display->fillTriangle(radar_center_x + x - 4, radar_center_y - y + 3,
-                                  radar_center_x + x    , radar_center_y - y - 5,
-                                  radar_center_x + x + 4, radar_center_y - y + 3,
-                                  GxEPD_BLACK);
-          }
+        // draw target as triangle
+        display->fillTriangle(radar_center_x + x + (int) epd_Points[0][0], radar_center_y - y + (int) epd_Points[0][1],
+                              radar_center_x + x + (int) epd_Points[1][0], radar_center_y - y + (int) epd_Points[1][1],
+                              radar_center_x + x + (int) epd_Points[2][0], radar_center_y - y + (int) epd_Points[2][1],
+                              GxEPD_BLACK);
+
+        if (Container[i].RelativeVertical >   EPD_RADAR_V_THRESHOLD) {
+          // draw a '+' next to target triangle
+          display->drawLine(    radar_center_x + x -2 + (int) epd_Points[3][0], radar_center_y - y + (int) epd_Points[3][1],
+                                radar_center_x + x +2 + (int) epd_Points[3][0], radar_center_y - y + (int) epd_Points[3][1],
+                                GxEPD_BLACK);
+          display->drawLine(    radar_center_x + x + (int) epd_Points[3][0], radar_center_y - y +2 + (int) epd_Points[3][1],
+                                radar_center_x + x + (int) epd_Points[3][0], radar_center_y - y -2 + (int) epd_Points[3][1],
+                                GxEPD_BLACK);
         } else if (Container[i].RelativeVertical < - EPD_RADAR_V_THRESHOLD) {
-          if (isTeam) {
-            display->drawTriangle(radar_center_x + x - 5, radar_center_y - y - 4,
-                                  radar_center_x + x    , radar_center_y - y + 6,
-                                  radar_center_x + x + 5, radar_center_y - y - 4,
-                                  GxEPD_BLACK);
-            display->drawTriangle(radar_center_x + x - 6, radar_center_y - y - 5,
-                                  radar_center_x + x    , radar_center_y - y + 7,
-                                  radar_center_x + x + 6, radar_center_y - y - 5,
-                                  GxEPD_BLACK);
-          } else {
-            display->fillTriangle(radar_center_x + x - 4, radar_center_y - y - 3,
-                                  radar_center_x + x    , radar_center_y - y + 5,
-                                  radar_center_x + x + 4, radar_center_y - y - 3,
-                                  GxEPD_BLACK);
-          }
+          // draw a '-' next to target triangle
+          display->drawLine(    radar_center_x + x -2 + (int) epd_Points[3][0], radar_center_y - y + (int) epd_Points[3][1],
+                                radar_center_x + x +2 + (int) epd_Points[3][0], radar_center_y - y + (int) epd_Points[3][1],
+                                GxEPD_BLACK);
         } else {
-          if (isTeam) {
-            display->drawCircle(radar_center_x + x,
-                                radar_center_y - y,
-                                6, GxEPD_BLACK);
-            display->drawCircle(radar_center_x + x,
-                                radar_center_y - y,
-                                7, GxEPD_BLACK);
-           } else {
-            display->fillCircle(radar_center_x + x,
-                                radar_center_y - y,
-                                5, GxEPD_BLACK);
-          }
+		  // TBD	
         }
+		// if Team match, draw a circle around target
+        if (isTeam) {
+          display->drawCircle(radar_center_x + x,
+                              radar_center_y - y,
+                              7, GxEPD_BLACK);
+		}
       }
     }
 
+    // draw range circles
     display->drawCircle(  radar_center_x, radar_center_y,
                           radius, GxEPD_BLACK);
     display->drawCircle(  radar_center_x, radar_center_y,
                           radius / 2, GxEPD_BLACK);
 
-#if 0
-    /* arrow tip */
-    display->fillTriangle(radar_center_x - 7, radar_center_y + 5,
-                          radar_center_x    , radar_center_y - 5,
-                          radar_center_x + 7, radar_center_y + 5,
-                          GxEPD_BLACK);
-    display->fillTriangle(radar_center_x - 7, radar_center_y + 5,
-                          radar_center_x    , radar_center_y + 2,
-                          radar_center_x + 7, radar_center_y + 5,
-                          GxEPD_WHITE);
-#else
-    /* little airplane */
-    display->drawFastVLine(radar_center_x,      radar_center_y - 4, 14, GxEPD_BLACK);
-    display->drawFastVLine(radar_center_x + 1,  radar_center_y - 4, 14, GxEPD_BLACK);
-
-    display->drawFastHLine(radar_center_x - 8,  radar_center_y,     18, GxEPD_BLACK);
-    display->drawFastHLine(radar_center_x - 10, radar_center_y + 1, 22, GxEPD_BLACK);
-
-    display->drawFastHLine(radar_center_x - 3,  radar_center_y + 8,  8, GxEPD_BLACK);
-    display->drawFastHLine(radar_center_x - 2,  radar_center_y + 9,  6, GxEPD_BLACK);
-#endif
+#if defined(ICON_AIRPLANE)
+    /* draw little airplane */
+	for (int i=0; i < ICON_AIRPLANE_POINTS; i++) {
+	  epd_Points[i][0] = (float) epd_Airplane[i][0];
+	  epd_Points[i][1] = (float) epd_Airplane[i][1];
+	}
+    switch (settings->orientation)
+	{
+    case DIRECTION_NORTH_UP:
+	  // rotate relative to ThisAircraft.Track
+	  for (int i=0; i < ICON_AIRPLANE_POINTS; i++) {
+	    EPD_2D_Rotate(epd_Points[i][0], epd_Points[i][1], trCos, trSin);
+	  }
+      break;
+    case DIRECTION_TRACK_UP:
+      break;
+    default:
+      /* TBD */
+      break;
+    }
+    display->drawLine(radar_center_x + (int) epd_Points[0][0], radar_center_y + (int) epd_Points[0][1], radar_center_x + (int) epd_Points[1][0], radar_center_y + (int) epd_Points[1][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[2][0], radar_center_y + (int) epd_Points[2][1], radar_center_x + (int) epd_Points[3][0], radar_center_y + (int) epd_Points[3][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[4][0], radar_center_y + (int) epd_Points[4][1], radar_center_x + (int) epd_Points[5][0], radar_center_y + (int) epd_Points[5][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[6][0], radar_center_y + (int) epd_Points[6][1], radar_center_x + (int) epd_Points[7][0], radar_center_y + (int) epd_Points[7][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[8][0], radar_center_y + (int) epd_Points[8][1], radar_center_x + (int) epd_Points[9][0], radar_center_y + (int) epd_Points[9][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[10][0], radar_center_y + (int) epd_Points[10][1], radar_center_x + (int) epd_Points[11][0], radar_center_y + (int) epd_Points[11][1],GxEPD_BLACK);
+#else  //ICON_AIRPLANE
+    /* draw arrow tip */
+	for (int i=0; i < ICON_ARROW_POINTS; i++) {
+	  epd_Points[i][0] = (float) epd_Arrow[i][0];
+	  epd_Points[i][1] = (float) epd_Arrow[i][1];
+	}
+    switch (settings->orientation) 
+	{
+    case DIRECTION_NORTH_UP:
+	  // rotate relative to ThisAircraft.Track
+	  for (int i=0; i < ICON_ARROW_POINTS; i++) {
+	    EPD_2D_Rotate(epd_Points[i][0], epd_Points[i][1], trCos, trSin);
+	  }
+      break;
+    case DIRECTION_TRACK_UP:
+      break;
+    default:
+      /* TBD */
+      break;
+    }
+    display->drawLine(radar_center_x + (int) epd_Points[0][0], radar_center_y + (int) epd_Points[0][1], radar_center_x + (int) epd_Points[1][0], radar_center_y + (int) epd_Points[1][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[1][0], radar_center_y + (int) epd_Points[1][1], radar_center_x + (int) epd_Points[2][0], radar_center_y + (int) epd_Points[2][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[2][0], radar_center_y + (int) epd_Points[2][1], radar_center_x + (int) epd_Points[3][0], radar_center_y + (int) epd_Points[3][1],GxEPD_BLACK);
+    display->drawLine(radar_center_x + (int) epd_Points[3][0], radar_center_y + (int) epd_Points[3][1], radar_center_x + (int) epd_Points[0][0], radar_center_y + (int) epd_Points[0][1],GxEPD_BLACK);
+#endif //ICON_AIRPLANE
 
     switch (settings->orientation)
     {
     case DIRECTION_NORTH_UP:
+	  // draw W, E, N, S
       x = radar_x + radar_w / 2 - radius + tbw/2;
       y = radar_y + (radar_w + tbh) / 2;
       display->setCursor(x , y);
@@ -384,6 +452,7 @@ static void EPD_Draw_Radar()
       display->print("S");
       break;
     case DIRECTION_TRACK_UP:
+	  // draw L, R, B
       x = radar_x + radar_w / 2 - radius + tbw/2;
       y = radar_y + (radar_w + tbh) / 2;
       display->setCursor(x , y);
@@ -397,6 +466,7 @@ static void EPD_Draw_Radar()
       display->setCursor(x , y);
       display->print("B");
 
+      // draw aircraft heading
       display->setFont(&FreeMonoBold9pt7b);
       snprintf(cog_text, sizeof(cog_text), "%03d", ThisAircraft.Track);
       display->getTextBounds(cog_text, 0, 0, &tbx, &tby, &tbw, &tbh);
