@@ -135,15 +135,15 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox3.x + 10, navbox3.y + 30);
 
     if (settings->units == UNITS_METRIC || settings->units == UNITS_MIXED) {
-      display->print(navbox3.value == ZOOM_LOWEST ? "20 KM" :
-                     navbox3.value == ZOOM_LOW    ? "10 KM" :
-                     navbox3.value == ZOOM_MEDIUM ? " 4 KM" :
-                     navbox3.value == ZOOM_HIGH   ? " 2 KM" : "");
+      display->print(navbox3.value == ZOOM_LOWEST ? "10 KM" :
+                     navbox3.value == ZOOM_LOW    ? " 5 KM" :
+                     navbox3.value == ZOOM_MEDIUM ? " 2 KM" :
+                     navbox3.value == ZOOM_HIGH   ? " 1 KM" : "");
     } else {
-      display->print(navbox3.value == ZOOM_LOWEST ? "10 NM" :
-                     navbox3.value == ZOOM_LOW    ? " 5 NM" :
-                     navbox3.value == ZOOM_MEDIUM ? " 2 NM" :
-                     navbox3.value == ZOOM_HIGH   ? " 1 NM" : "");
+      display->print(navbox3.value == ZOOM_LOWEST ? " 5 NM" :
+                     navbox3.value == ZOOM_LOW    ? "2.5NM" :
+                     navbox3.value == ZOOM_MEDIUM ? " 1 NM" :
+                     navbox3.value == ZOOM_HIGH   ? "0.5NM" : "");
     }
 
     display->setFont(&FreeMonoBold18pt7b);
@@ -209,8 +209,8 @@ static void EPD_Draw_Radar()
   uint16_t y;
   char cog_text[6];
 
-  /* divider is a half of full scale */
-  int32_t divider = 2000; 
+  /* divider is distance range */
+  int32_t divider = 2000; // default 2000m 
 
   display->setFont(&FreeMono9pt7b);
   display->getTextBounds("N", 0, 0, &tbx, &tby, &tbw, &tbh);

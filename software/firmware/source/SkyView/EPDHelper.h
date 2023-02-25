@@ -30,7 +30,8 @@
 
 #define NAVBOX1_TITLE           "ACFTS"
 #define NAVBOX2_TITLE           "DATA"
-#define NAVBOX3_TITLE           "SCALE"
+// # define NAVBOX3_TITLE           "SCALE"
+#define NAVBOX3_TITLE           "RANGE"
 #define NAVBOX4_TITLE           "BAT"
 
 #define isTimeToDisplay()       (millis() - EPDTimeMarker > 2000)
