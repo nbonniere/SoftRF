@@ -192,15 +192,6 @@ void EPD_radar_Draw_Message(const char *msg1, const char *msg2)
   }
 }
 
-// 2D rotation
-static void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin)
-{
-    float tTemp;
-	tTemp = tX * tCos + tY * -tSin;
-    tY = tX * tSin + tY *  tCos;
-    tX = tTemp;
-}
-
 static void EPD_Draw_Radar()
 {
   int16_t  tbx, tby;

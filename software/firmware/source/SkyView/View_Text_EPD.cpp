@@ -43,8 +43,7 @@ static void EPD_Draw_Text()
     if (Container[i].ID && (now() - Container[i].timestamp) <= EPD_EXPIRATION_TIME) {
 
       traffic[j].fop = &Container[i];
-      traffic[j].distance = sqrtf(Container[i].RelativeNorth * Container[i].RelativeNorth +
-                                  Container[i].RelativeEast  * Container[i].RelativeEast);
+      traffic[j].distance = Container[i].RelativeDistance;
       j++;
     }
   }
@@ -62,21 +61,14 @@ static void EPD_Draw_Text()
       EPD_current = j;
     }
 
-    bearing = (int) (atan2f(traffic[EPD_current - 1].fop->RelativeNorth,
-                           traffic[EPD_current - 1].fop->RelativeEast) * 180.0 / PI);  /* -180 ... 180 */
-						   
-    int brg = bearing;						   
-
-    /* convert from math angle into course relative to north */
-    bearing = (bearing <= 90 ? 90 - bearing :
-                              450 - bearing);
+      bearing = (int) (traffic[EPD_current - 1].fop->RelativeBearing);
 
     /* This bearing is always relative to current ground track */
 //  if (settings->orientation == DIRECTION_TRACK_UP) {
       bearing -= ThisAircraft.Track;
 //  }
 
-    if (bearing < 0) {
+    while (bearing < 0) {
       bearing += 360;
     }
 
@@ -85,15 +77,13 @@ static void EPD_Draw_Text()
 #if 0
       Serial.print(F("Debug "));
       Serial.print(traffic[EPD_current - 1].fop->RelativeNorth);
-      Serial.print(F(" , "));
+      Serial.print(F(", "));
       Serial.print(traffic[EPD_current - 1].fop->RelativeEast);
-      Serial.print(F(" , "));
-      Serial.print(brg);
-      Serial.print(F(" , "));
+      Serial.print(F(", "));
       Serial.print(ThisAircraft.Track);
-      Serial.print(F(" , "));
+      Serial.print(F(", "));
       Serial.print(bearing);
-      Serial.print(F(" , "));
+      Serial.print(F(", "));
       Serial.println(oclock);
       Serial.flush();
 #endif
@@ -247,8 +237,10 @@ static void EPD_Draw_Text()
                traffic[EPD_current - 1].fop->Track);
       display->getTextBounds(info_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       y += tbh;
-      display->setCursor(x, y);
-      display->print(info_line);
+	  if (traffic[EPD_current - 1].fop->Track >= 0) { // only if track is available
+        display->setCursor(x, y);
+        display->print(info_line);
+	  }	
 //      Serial.println(info_line);
 
       y += TEXT_VIEW_LINE_SPACING;
@@ -256,8 +248,10 @@ static void EPD_Draw_Text()
       snprintf(info_line, sizeof(info_line), "GS  %3d %s", disp_spd, u_spd);
       display->getTextBounds(info_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       y += tbh;
-      display->setCursor(x, y);
-      display->print(info_line);
+	  if (disp_spd >= 0) {  // only if speed is available
+        display->setCursor(x, y);
+        display->print(info_line);
+	  }	
 //      Serial.println(info_line);
 
       y += TEXT_VIEW_LINE_SPACING;

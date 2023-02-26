@@ -32,12 +32,79 @@ traffic_by_dist_t traffic[MAX_TRACKING_OBJECTS];
 static unsigned long UpdateTrafficTimeMarker = 0;
 static unsigned long Traffic_Voice_TimeMarker = 0;
 
+// Fast approx magnitude (4% max error)
+float fast_magnitude(float rel_x, float rel_y)
+{
+  /* magnitude ~= alpha * max(|rel_x|, |rel_y|) + beta * min(|rel_x|, |rel_y|) */
+  float alpha = 0.96043387;
+  float beta  = 0.39782473;
+  float abs_rel_x = fabs(rel_x);
+  float abs_rel_y = fabs(rel_y);
+  if (abs_rel_x > abs_rel_y) {
+    return alpha * abs_rel_x + beta * abs_rel_y;
+  } else {
+    return alpha * abs_rel_y + beta * abs_rel_x;
+  }
+}
+
+// Fast approx angle (4 deg max error)
+float fast_atan2(float rel_x, float rel_y)
+{
+  static float ONEQTR_PI = PI / 4.0;
+  static float THRQTR_PI = 3.0 * ONEQTR_PI;
+  float r, angle;
+  float abs_rel_y = fabs(rel_y) + 1e-10f; // kludge to prevent 0/0 condition
+  if ( rel_x < 0.0f ) {
+    r = (rel_x + abs_rel_y) / (abs_rel_y - rel_x);
+	angle = THRQTR_PI;
+  } else {
+    r = (rel_x - abs_rel_y) / (rel_x + abs_rel_y);
+    angle = ONEQTR_PI;
+  }
+  angle -= ONEQTR_PI * r;
+  if ( rel_y < 0.0f ) {
+     return( -angle );     // negate if in quad III or IV
+  } else {
+    return( angle );
+  }	
+}
+
+// Fast approx angle (0.5 deg max error)
+/*
+float fast_atan2(float rel_x, float rel_y)
+{
+  static float ONEQTR_PI = PI / 4.0;
+  static float THRQTR_PI = 3.0 * ONEQTR_PI;
+  float r, angle;
+  float abs_rel_y = fabs(rel_y) + 1e-10f; // kludge to prevent 0/0 condition
+  if ( rel_x < 0.0f ) {
+	r = (rel_x + abs_rel_y) / (abs_rel_y - rel_x);
+	angle = THRQTR_PI;
+  } else {
+    r = (rel_x - abs_rel_y) / (rel_x + abs_rel_y);
+    angle = ONEQTR_PI;
+  }
+  angle += (0.1963f * r * r - 0.9817f) * r;
+  if ( rel_y < 0.0f ) {
+     return( -angle );     // negate if in quad III or IV
+  } else {
+    return( angle );
+  }
+}
+*/
+
+// 2D rotation
+void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin)
+{
+    float tTemp;
+	tTemp = tX * tCos + tY * -tSin;
+    tY = tX * tSin + tY *  tCos;
+    tX = tTemp;
+}
+
 void Traffic_Add()
 {
-    float fo_distance_sq = fo.RelativeNorth * fo.RelativeNorth +
-                           fo.RelativeEast  * fo.RelativeEast;
-
-    if (fo_distance_sq > ALARM_ZONE_NONE * ALARM_ZONE_NONE) {
+    if (fo.RelativeDistance > ALARM_ZONE_NONE) {
       return;
     }
 
@@ -50,8 +117,14 @@ void Traffic_Add()
       for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
         if (Container[i].ID == fo.ID) {
           uint8_t alert_bak = Container[i].alert;
+          int16_t track_bak = Container[i].Track;
+          int16_t speed_bak = Container[i].GroundSpeed;
           Container[i] = fo;
           Container[i].alert = alert_bak;
+		  if (fo.Track == -360) {           // in case unkown, use previous value
+            Container[i].Track = track_bak;
+            Container[i].GroundSpeed = speed_bak;
+		  }
           return;
         }
       }
@@ -67,8 +140,7 @@ void Traffic_Add()
           return;
         }
 
-        float distance_sq = Container[i].RelativeNorth * Container[i].RelativeNorth +
-                            Container[i].RelativeEast  * Container[i].RelativeEast;
+        float distance_sq = Container[i].RelativeDistance;
 
         if  (distance_sq > max_distance_sq) {
           max_dist_ndx = i;
@@ -84,7 +156,7 @@ void Traffic_Add()
         return;
       }
 
-      if (fo_distance_sq <  max_distance_sq &&
+      if (fo.RelativeDistance <  max_distance_sq &&
           fo.AlarmLevel  >= Container[max_dist_ndx].AlarmLevel) {
         Container[max_dist_ndx] = fo;
         return;
@@ -94,18 +166,18 @@ void Traffic_Add()
 
 void Traffic_Update(traffic_t *fop)
 {
-  float distance = nmea.distanceBetween( ThisAircraft.latitude,
+  fop->RelativeDistance = nmea.distanceBetween( ThisAircraft.latitude,
                                          ThisAircraft.longitude,
                                          fop->latitude,
                                          fop->longitude);
 
-  float bearing  = nmea.courseTo( ThisAircraft.latitude,
+  fop->RelativeBearing  = nmea.courseTo( ThisAircraft.latitude,
                                   ThisAircraft.longitude,
                                   fop->latitude,
                                   fop->longitude);
 
-  fop->RelativeNorth     = distance * cos(radians(bearing));
-  fop->RelativeEast      = distance * sin(radians(bearing));
+  fop->RelativeNorth     = fop->RelativeDistance * cos(radians(fop->RelativeBearing));
+  fop->RelativeEast      = fop->RelativeDistance * sin(radians(fop->RelativeBearing));
   fop->RelativeVertical  = fop->altitude - ThisAircraft.altitude;
 }
 
@@ -120,8 +192,7 @@ static void Traffic_Voice()
     if (Container[i].ID && (now() - Container[i].timestamp) <= VOICE_EXPIRATION_TIME) {
 
       traffic[j].fop = &Container[i];
-      traffic[j].distance = sqrtf(Container[i].RelativeNorth * Container[i].RelativeNorth +
-                                  Container[i].RelativeEast  * Container[i].RelativeEast);
+      traffic[j].distance = Container[i].RelativeDistance;
       j++;
     }
   }
@@ -144,19 +215,14 @@ static void Traffic_Voice()
   for (i=0; i < j; i++) {
     if ((traffic[i].fop->alert & TRAFFIC_ALERT_VOICE) == 0) {
 
-      bearing = (int) (atan2f(traffic[i].fop->RelativeNorth,
-                              traffic[i].fop->RelativeEast) * 180.0 / PI);  /* -180 ... 180 */
-
-      /* convert from math angle into course relative to north */
-      bearing = (bearing <= 90 ? 90 - bearing :
-                                450 - bearing);
+      bearing = (int) (traffic[i].fop->RelativeBearing);
 
       /* This bearing is always relative to current ground track */
 //    if (settings->orientation == DIRECTION_TRACK_UP) {
           bearing -= ThisAircraft.Track;
 //    }
 
-      if (bearing < 0) {
+      while (bearing < 0) {
         bearing += 360;
       }
 

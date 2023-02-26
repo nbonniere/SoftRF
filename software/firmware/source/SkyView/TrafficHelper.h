@@ -35,9 +35,9 @@ typedef struct traffic_struct {
                                   //
     int8_t    IDType;             // addressType
     uint32_t  ID;                 // address
-    uint16_t  Track;              // trackOrHeading
+    int16_t   Track;              // trackOrHeading
     int16_t   TurnRate;
-    uint16_t  GroundSpeed;        // horizontalVelocity
+    int16_t   GroundSpeed;        // horizontalVelocity
     float     ClimbRate;          // verticalVelocity
     int8_t    AcftType;           // emitterCategory
 
@@ -45,6 +45,8 @@ typedef struct traffic_struct {
     float     RelativeNorth;
     float     RelativeEast;
     float     RelativeVertical;
+    float     RelativeDistance;
+    float     RelativeBearing;
 
 /*            GDL90      */
     float     latitude;
@@ -72,6 +74,10 @@ typedef struct traffic_by_dist_struct {
 #define VOICE_EXPIRATION_TIME   5 /* seconds */
 
 #define TRAFFIC_ALERT_VOICE     1
+
+float fast_magnitude(float rel_x, float rel_y);
+float fast_atan2(float rel_x, float rel_y);
+void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin);
 
 void Traffic_setup        (void);
 void Traffic_loop         (void);
