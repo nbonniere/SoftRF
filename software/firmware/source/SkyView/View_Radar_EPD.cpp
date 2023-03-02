@@ -52,8 +52,8 @@ const int16_t epd_Airplane[ICON_AIRPLANE_POINTS][2] = {{0,-4},{0,10},{-8,0},{9,0
 #define ICON_ARROW_POINTS 4
 const int16_t epd_Arrow[ICON_ARROW_POINTS][2] = {{-6,5},{0,-6},{6,5},{0,2}};
 #endif //ICON_AIRPLANE
-#define ICON_TARGETS_POINTS 4
-const int16_t epd_Target[ICON_TARGETS_POINTS][2] = {{4,4},{0,-6},{-4,4},{-5,-3}};
+#define ICON_TARGETS_POINTS 5
+const int16_t epd_Target[ICON_TARGETS_POINTS][2] = {{4,4},{0,-6},{-4,4},{-5,-3},{0,2}};
 
 #define MAX_DRAW_POINTS 12
 
@@ -199,7 +199,8 @@ static void EPD_Draw_Radar()
   uint16_t x;
   uint16_t y;
   char cog_text[6];
-
+  int16_t scale;
+  
   /* divider is distance range */
   int32_t divider = 2000; // default 2000m 
 
@@ -255,8 +256,8 @@ static void EPD_Draw_Radar()
   }
 
   {
-    float trSin = sin(radians(-ThisAircraft.Track));
-    float trCos = cos(radians(-ThisAircraft.Track));
+    float trSin = fast_sine(radians(-ThisAircraft.Track));
+    float trCos = fast_cosine(radians(-ThisAircraft.Track));
 	
     for (int i=0; i < MAX_TRACKING_OBJECTS; i++) {
       if (Container[i].ID && (now() - Container[i].timestamp) <= EPD_EXPIRATION_TIME) {
@@ -270,8 +271,8 @@ static void EPD_Draw_Radar()
 
         rel_x = Container[i].RelativeEast;
         rel_y = Container[i].RelativeNorth;
-        tgtSin = sin(radians(Container[i].Track));
-        tgtCos = cos(radians(Container[i].Track));
+        tgtSin = fast_sine(radians(Container[i].Track));
+        tgtCos = fast_cosine(radians(Container[i].Track));
 		
 		for (int i=0; i < ICON_TARGETS_POINTS; i++) {
 		  epd_Points[i][0] = (float) epd_Target[i][0];
@@ -332,11 +333,34 @@ static void EPD_Draw_Radar()
         int16_t x = constrain((rel_x * radius) / divider, -32768, 32767);
         int16_t y = constrain((rel_y * radius) / divider, -32768, 32767);
 
-        // draw target as triangle
-        display->fillTriangle(radar_center_x + x + (int) epd_Points[0][0], radar_center_y - y + (int) epd_Points[0][1],
-                              radar_center_x + x + (int) epd_Points[1][0], radar_center_y - y + (int) epd_Points[1][1],
-                              radar_center_x + x + (int) epd_Points[2][0], radar_center_y - y + (int) epd_Points[2][1],
-                              GxEPD_BLACK);
+        scale = Container[i].AlarmLevel + 1;
+
+        switch(Container[i].AlarmLevel)
+        {
+        case 0:
+          // draw target as triangle
+          display->fillTriangle(radar_center_x + x + (int) epd_Points[0][0], radar_center_y - y + (int) epd_Points[0][1],
+                                radar_center_x + x + (int) epd_Points[1][0], radar_center_y - y + (int) epd_Points[1][1],
+                                radar_center_x + x + (int) epd_Points[2][0], radar_center_y - y + (int) epd_Points[2][1],
+                                GxEPD_BLACK);							  
+          break;
+        case 1:
+          //break;
+        case 2:
+          //break;
+        case 3:
+          display->fillTriangle(radar_center_x + x + scale * ((int) epd_Points[0][0]), radar_center_y - y + scale * ((int) epd_Points[0][1]),
+                                radar_center_x + x + scale * ((int) epd_Points[1][0]), radar_center_y - y + scale * ((int) epd_Points[1][1]),
+                                radar_center_x + x + scale * ((int) epd_Points[4][0]), radar_center_y - y + scale * ((int) epd_Points[4][1]),
+                                GxEPD_BLACK);
+          display->fillTriangle(radar_center_x + x + scale * ((int) epd_Points[2][0]), radar_center_y - y + scale * ((int) epd_Points[2][1]),
+                                radar_center_x + x + scale * ((int) epd_Points[1][0]), radar_center_y - y + scale * ((int) epd_Points[1][1]),
+                                radar_center_x + x + scale * ((int) epd_Points[4][0]), radar_center_y - y + scale * ((int) epd_Points[4][1]),
+                                GxEPD_BLACK);
+          break;
+        default:
+          break;
+        }			  
 
         if (Container[i].RelativeVertical >   EPD_RADAR_V_THRESHOLD) {
           // draw a '+' next to target triangle

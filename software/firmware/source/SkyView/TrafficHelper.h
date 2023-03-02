@@ -77,6 +77,8 @@ typedef struct traffic_by_dist_struct {
 
 float fast_magnitude(float rel_x, float rel_y);
 float fast_atan2(float rel_x, float rel_y);
+float fast_sine(float angle);
+float fast_cosine(float angle);
 void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin);
 
 void Traffic_setup        (void);

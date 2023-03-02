@@ -715,9 +715,11 @@ static bool play_file(char *filename)
         break;
         /* after processing wav file, it is time to process music data */
         case DATA:
-        uint32_t data;
-        n = read4bytes(wavfile, &data);
-        i2s_write_sample_nb(data);
+        uint32_t data[32];
+        n = wavfile.read((uint8_t *)&data, sizeof(data));
+        if (n > 0) {
+          i2s_write_bytes((i2s_port_t)i2s_num, (const char *)&data, n, 100);		
+		} 
         break;
       }
     }

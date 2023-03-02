@@ -229,8 +229,8 @@ static void NMEA_Parse_Character(char c)
 		  fo.RelativeBearing  = NMEA_Status.RelativeBearing;
 		  fo.AlarmLevel       = NMEA_Status.AlarmLevel;
 
-          fo.RelativeNorth   = fo.RelativeDistance * cos(radians(fo.RelativeBearing));
-          fo.RelativeEast    = fo.RelativeDistance * sin(radians(fo.RelativeBearing));
+          fo.RelativeNorth   = fo.RelativeDistance * fast_cosine(radians(fo.RelativeBearing));
+          fo.RelativeEast    = fo.RelativeDistance * fast_sine(radians(fo.RelativeBearing));
 		  fo.Track           = -360; // flag as unknown
 		  fo.GroundSpeed     = -1;   // flag as unknown
 		  

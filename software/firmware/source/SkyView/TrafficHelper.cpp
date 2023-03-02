@@ -36,8 +36,8 @@ static unsigned long Traffic_Voice_TimeMarker = 0;
 float fast_magnitude(float rel_x, float rel_y)
 {
   /* magnitude ~= alpha * max(|rel_x|, |rel_y|) + beta * min(|rel_x|, |rel_y|) */
-  float alpha = 0.96043387;
-  float beta  = 0.39782473;
+  static float alpha = 0.96043387;
+  static float beta  = 0.39782473;
   float abs_rel_x = fabs(rel_x);
   float abs_rel_y = fabs(rel_y);
   if (abs_rel_x > abs_rel_y) {
@@ -93,6 +93,31 @@ float fast_atan2(float rel_x, float rel_y)
 }
 */
 
+// Fast sine (1% max error)
+float fast_sine(float angle)
+{
+  static float ALPHA = 0.224;
+  static float TWO_DIV_PI_SQ = 4/(PI*PI);
+  float temp1;
+  float temp2;
+  while (angle >= PI) {
+    angle -= TWO_PI;
+  }
+  while (angle < -PI) {
+    angle += TWO_PI;
+  }
+  temp1 = fabs(angle);
+  temp1 = (PI-temp1)*angle*TWO_DIV_PI_SQ;
+  temp2 = fabs(temp1);
+  return temp1-(1-temp2)*temp1*ALPHA;
+}
+
+float fast_cosine(float angle)
+{
+  static float PI_DIV_2 = PI / 2;
+  return fast_sine(PI_DIV_2-angle);
+}
+
 // 2D rotation
 void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin)
 {
@@ -114,6 +139,7 @@ void Traffic_Add()
                       fo.RelativeVertical <  500) ) {
       int i;
 
+      // if target already in the list, update the list
       for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
         if (Container[i].ID == fo.ID) {
           uint8_t alert_bak = Container[i].alert;
@@ -129,10 +155,11 @@ void Traffic_Add()
         }
       }
 
+      // when target not in list, check for higher alarm level
+	  // or shorter distance, or time-expired target
       int max_dist_ndx = 0;
       int min_level_ndx = 0;
-      float max_distance_sq = Container[max_dist_ndx].RelativeNorth * Container[max_dist_ndx].RelativeNorth +
-                              Container[max_dist_ndx].RelativeEast  * Container[max_dist_ndx].RelativeEast;
+      float max_distance_sq = Container[max_dist_ndx].RelativeDistance;
 
       for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
         if (now() - Container[i].timestamp > ENTRY_EXPIRATION_TIME) {
