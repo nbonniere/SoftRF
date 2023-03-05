@@ -108,6 +108,8 @@ typedef struct wavProperties_s {
     uint16_t bitsPerSample;
 } wavProperties_t;
 
+void Speech_Task( void * parameter );
+
 extern bool loopTaskWDTEnabled;
 
 extern WebServer server;

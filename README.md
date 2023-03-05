@@ -1,4 +1,5 @@
 # Differences
+SOFTRF
 * programmable Device ID
 * programmable ICAO flag for OGN and Legacy protocols
 * DHCP lease extension for use with Kobo eReader running XcSoar
@@ -8,7 +9,14 @@
 * fix scaling VsMult scaling in Legacy protocol
 * add altitude clamp fix to Legacy protocol
 * OLED display and Pressure transducer connection on secondary I2C port to avoid using the same I2C as the AP power manager.
+* Legacy protocol update
 
+SKYVIEW
+* fix oclock in Text View
+* enhance Radar View with target headings
+* radar range instead of scale
+* voice in own task
+* short voice message on alarm
 
 # SoftRF &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [![Join the chat at https://gitter.im/lyusupov/SoftRF](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/lyusupov/SoftRF?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/lyusupov/SoftRF.png?branch=master)](https://travis-ci.org/lyusupov/SoftRF "Build Status") 
 Multifunctional DIY IoT-based general aviation proximity awareness system.

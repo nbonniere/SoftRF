@@ -240,7 +240,8 @@ static void Traffic_Voice()
    * Closest traffic is the first, outmost one is the last.
    */
   for (i=0; i < j; i++) {
-    if ((traffic[i].fop->alert & TRAFFIC_ALERT_VOICE) == 0) {
+    if ( ((traffic[i].fop->alert & TRAFFIC_ALERT_VOICE) == 0) ||
+          (traffic[i].fop->AlarmLevel != 0) ){
 
       bearing = (int) (traffic[i].fop->RelativeBearing);
 
@@ -330,23 +331,42 @@ static void Traffic_Voice()
         snprintf(how_far, sizeof(how_far), "%u %s", (int) voc_dist, u_dist);
       }
 
-      if (voc_alt < 100) {
-        strcpy(elev, "near");
-      } else {
-        if (voc_alt > 500) {
-          voc_alt = 500;
-        }
+      if ((traffic[i].fop->AlarmLevel != 0)) {
+		// short fast message
+        if (traffic[i].fop->RelativeVertical < 100) {
+          strcpy(elev, "low");
+        } else {
+          if (traffic[i].fop->RelativeVertical > 100) {
+            strcpy(elev, "high");
+          } else {
+            strcpy(elev, "");
+          }
+		}
+        snprintf(message, sizeof(message),
+//                    "danger %s %s",
+                    "%s %s",
+                    where, elev);
 
+	  } else {
+        // longer status message
+		if (voc_alt < 100) {
+          strcpy(elev, "near");
+        } else {
+          if (voc_alt > 500) {
+            voc_alt = 500;
+          }
+        }
         snprintf(elev, sizeof(elev), "%u hundred %s %s",
           (voc_alt / 100), u_alt,
           traffic[i].fop->RelativeVertical > 0 ? "above" : "below");
-      }
-
-      snprintf(message, sizeof(message),
-                  "traffic %s distance %s altitude %s",
-                  where, how_far, elev);
+		  
+        snprintf(message, sizeof(message),
+                    "traffic %s distance %s altitude %s",
+                    where, how_far, elev);
+	  }
 
       traffic[i].fop->alert |= TRAFFIC_ALERT_VOICE;
+	  
       traffic[i].fop->timestamp = now();
 
       SoC->TTS(message);

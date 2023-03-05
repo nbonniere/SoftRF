@@ -144,6 +144,11 @@ i2s_pin_config_t pin_config = {
 
 RTC_DATA_ATTR int bootCount = 0;
 
+// #define SPEECH_STACK_SZ      (256*4)
+#define SPEECH_STACK_SZ      8192
+static TaskHandle_t Speech_Task_Handle = NULL;
+char voiceMsg[80]; // copy of message prepared by traffic helper
+
 static uint32_t ESP32_getFlashId()
 {
   return g_rom_flashchip.device_id;
@@ -162,6 +167,12 @@ static void ESP32_fini()
   esp_wifi_stop();
   esp_bt_controller_disable();
   SPI.end();
+
+  if( Speech_Task_Handle != NULL )
+  {
+    vTaskDelete( Speech_Task_Handle );
+  }
+
 
   /*
    * manually apply this fix onto Arduino Core for ESP32:
@@ -664,6 +675,7 @@ static bool play_file(char *filename)
   File wavfile = SD.open(filename);
 
   if (wavfile) {
+  Serial.println(filename);
     int c = 0;
     int n;
     while (wavfile.available()) {
@@ -737,66 +749,81 @@ static bool play_file(char *filename)
 
 static void ESP32_TTS(char *message)
 {
-  char filename[MAX_FILENAME_LEN];
-
-  if (strcmp(message, "POST")) {
-    if (settings->voice != VOICE_OFF && settings->adapter == ADAPTER_TTGO_T5S) {
-
-      if (SD.cardType() == CARD_NONE)
-        return;
-
-      while (!SoC->EPD_is_ready()) {yield();}
-      EPD_Message("VOICE", "ALERT");
-      SoC->EPD_update(EPD_UPDATE_FAST);
-      while (!SoC->EPD_is_ready()) {yield();}
-
-      bool wdt_status = loopTaskWDTEnabled;
-
-      if (wdt_status) {
-        disableLoopWDT();
-      }
-
-      char *word = strtok (message, " ");
-
-      while (word != NULL)
-      {
-          strcpy(filename, WAV_FILE_PREFIX);
-          strcat(filename,  settings->voice == VOICE_1 ? VOICE1_SUBDIR :
-                           (settings->voice == VOICE_2 ? VOICE2_SUBDIR :
-                           (settings->voice == VOICE_3 ? VOICE3_SUBDIR :
-                            "" )));
-          strcat(filename, word);
-          strcat(filename, WAV_FILE_SUFFIX);
-          play_file(filename);
-          word = strtok (NULL, " ");
-
-          yield();
-
-          /* Poll input source(s) */
-          Input_loop();
-      }
-
-      if (wdt_status) {
-        enableLoopWDT();
-      }
-    }
+  if( Speech_Task_Handle == NULL ) {
+  // create a task for Text-To_Speech (TTS)
+  xTaskCreate(Speech_Task, "Speech Task", SPEECH_STACK_SZ, NULL, 1,
+              &Speech_Task_Handle);
+//  Serial.println("Voice Task started");
+  }					   
+  // is string is empty
+  if (voiceMsg && !voiceMsg[0]) {
+    // copy the string and return
+    strcpy(voiceMsg, message);
+//} // else just return
   } else {
-    if (settings->voice != VOICE_OFF && settings->adapter == ADAPTER_TTGO_T5S) {
+    Serial.print("ignore "); Serial.println(message);
+  }
+}
 
-      strcpy(filename, WAV_FILE_PREFIX);
-      strcat(filename, "POST");
-      strcat(filename, WAV_FILE_SUFFIX);
+void Speech_Task( void * parameter )
+{
+  char filename[MAX_FILENAME_LEN];
+  int taskState = 0;
 
-      if (SD.cardType() == CARD_NONE || !play_file(filename)) {
-        /* keep boot-time SkyView logo on the screen for 7 seconds */
-        delay(7000);
-      }
-    } else {
-      if (hw_info.display == DISPLAY_EPD_2_7) {
-        /* keep boot-time SkyView logo on the screen for 7 seconds */
-        delay(7000);
-      }
-    }
+  while (1) {
+    switch (taskState) {
+      case 0: // wait for message
+        if (voiceMsg && voiceMsg[0]) {
+  Serial.println(voiceMsg);
+		  taskState = 1;
+		}
+		vTaskDelay(100);
+        break;
+      case 1: // parse message
+        if (strcmp(voiceMsg, "POST")) {
+          if (settings->voice != VOICE_OFF && settings->adapter == ADAPTER_TTGO_T5S) {
+            if (SD.cardType() == CARD_NONE) {
+		      taskState = 2;
+              break;
+			}
+
+            char *word = strtok (voiceMsg, " ");
+
+            while (word != NULL) {
+              strcpy(filename, WAV_FILE_PREFIX);
+              strcat(filename,  settings->voice == VOICE_1 ? VOICE1_SUBDIR :
+                               (settings->voice == VOICE_2 ? VOICE2_SUBDIR :
+                               (settings->voice == VOICE_3 ? VOICE3_SUBDIR :
+                               "" )));
+              strcat(filename, word);
+              strcat(filename, WAV_FILE_SUFFIX);
+              play_file(filename);
+              word = strtok (NULL, " ");
+            }
+	        taskState = 2;
+            break;
+          }
+        } else {
+          if (settings->voice != VOICE_OFF && settings->adapter == ADAPTER_TTGO_T5S) {
+            strcpy(filename, WAV_FILE_PREFIX);
+            strcat(filename, "POST");
+            strcat(filename, WAV_FILE_SUFFIX);
+            if (SD.cardType() == CARD_NONE || !play_file(filename)) {
+            }
+	        taskState = 2;
+            break;
+          }
+        }
+        break;
+      case 2: // all done, clear the message string
+          if (voiceMsg) {
+			voiceMsg[0] = '\0';
+		  }
+          taskState = 0;
+        break;
+      default:
+        break;
+	}
   }
 }
 
@@ -928,7 +955,7 @@ static void ESP32_Button_fini()
 
 static void ESP32_WDT_setup()
 {
-  enableLoopWDT();
+//  enableLoopWDT();
 }
 
 static void ESP32_WDT_fini()
