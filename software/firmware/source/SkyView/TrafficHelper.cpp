@@ -56,7 +56,7 @@ float fast_atan2(float rel_x, float rel_y)
   float abs_rel_y = fabs(rel_y) + 1e-10f; // kludge to prevent 0/0 condition
   if ( rel_x < 0.0f ) {
     r = (rel_x + abs_rel_y) / (abs_rel_y - rel_x);
-	angle = THRQTR_PI;
+    angle = THRQTR_PI;
   } else {
     r = (rel_x - abs_rel_y) / (rel_x + abs_rel_y);
     angle = ONEQTR_PI;
@@ -66,7 +66,7 @@ float fast_atan2(float rel_x, float rel_y)
      return( -angle );     // negate if in quad III or IV
   } else {
     return( angle );
-  }	
+  }
 }
 
 // Fast approx angle (0.5 deg max error)
@@ -78,8 +78,8 @@ float fast_atan2(float rel_x, float rel_y)
   float r, angle;
   float abs_rel_y = fabs(rel_y) + 1e-10f; // kludge to prevent 0/0 condition
   if ( rel_x < 0.0f ) {
-	r = (rel_x + abs_rel_y) / (abs_rel_y - rel_x);
-	angle = THRQTR_PI;
+    r = (rel_x + abs_rel_y) / (abs_rel_y - rel_x);
+    angle = THRQTR_PI;
   } else {
     r = (rel_x - abs_rel_y) / (rel_x + abs_rel_y);
     angle = ONEQTR_PI;
@@ -122,7 +122,7 @@ float fast_cosine(float angle)
 void EPD_2D_Rotate(float &tX, float &tY, float tCos, float tSin)
 {
     float tTemp;
-	tTemp = tX * tCos + tY * -tSin;
+    tTemp = tX * tCos + tY * -tSin;
     tY = tX * tSin + tY *  tCos;
     tX = tTemp;
 }
@@ -147,16 +147,16 @@ void Traffic_Add()
           int16_t speed_bak = Container[i].GroundSpeed;
           Container[i] = fo;
           Container[i].alert = alert_bak;
-		  if (fo.Track == -360) {           // in case unkown, use previous value
+          if (fo.Track == -360) {           // in case unkown, use previous value
             Container[i].Track = track_bak;
             Container[i].GroundSpeed = speed_bak;
-		  }
+          }
           return;
         }
       }
 
       // when target not in list, check for higher alarm level
-	  // or shorter distance, or time-expired target
+      // or shorter distance, or time-expired target
       int max_dist_ndx = 0;
       int min_level_ndx = 0;
       float max_distance_sq = Container[max_dist_ndx].RelativeDistance;
@@ -237,7 +237,8 @@ static void Traffic_Voice()
 
   /*
    * Issue only one voice alert per each aircraft in the traffic table.
-   * Closest traffic is the first, outmost one is the last.
+   * Closest traffic is the first, outmost one is the last,
+   * or traffic with alarm
    */
   for (i=0; i < j; i++) {
     if ( ((traffic[i].fop->alert & TRAFFIC_ALERT_VOICE) == 0) ||
@@ -259,7 +260,8 @@ static void Traffic_Voice()
       switch (oclock)
       {
       case 0:
-        where = "ahead";
+//        where = "ahead";
+        where = "12oclock";
         break;
       case 1:
         where = "1oclock";
@@ -331,8 +333,8 @@ static void Traffic_Voice()
         snprintf(how_far, sizeof(how_far), "%u %s", (int) voc_dist, u_dist);
       }
 
+      // short fast message if alarm present
       if ((traffic[i].fop->AlarmLevel != 0)) {
-		// short fast message
         if (traffic[i].fop->RelativeVertical < 100) {
           strcpy(elev, "low");
         } else {
@@ -341,32 +343,31 @@ static void Traffic_Voice()
           } else {
             strcpy(elev, "");
           }
-		}
+        }
         snprintf(message, sizeof(message),
 //                    "danger %s %s",
                     "%s %s",
                     where, elev);
 
-	  } else {
-        // longer status message
-		if (voc_alt < 100) {
+      } else {  // longer status message
+        if (voc_alt < 100) {
           strcpy(elev, "near");
         } else {
           if (voc_alt > 500) {
             voc_alt = 500;
           }
+          snprintf(elev, sizeof(elev), "%u hundred %s %s",
+                   (voc_alt / 100), u_alt,
+                   traffic[i].fop->RelativeVertical > 0 ? "above" : "below");
         }
-        snprintf(elev, sizeof(elev), "%u hundred %s %s",
-          (voc_alt / 100), u_alt,
-          traffic[i].fop->RelativeVertical > 0 ? "above" : "below");
-		  
+
         snprintf(message, sizeof(message),
-                    "traffic %s distance %s altitude %s",
-                    where, how_far, elev);
-	  }
+                 "traffic %s distance %s altitude %s",
+                 where, how_far, elev);
+      }
 
       traffic[i].fop->alert |= TRAFFIC_ALERT_VOICE;
-	  
+
       traffic[i].fop->timestamp = now();
 
       SoC->TTS(message);

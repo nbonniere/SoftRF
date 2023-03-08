@@ -144,8 +144,8 @@ i2s_pin_config_t pin_config = {
 
 RTC_DATA_ATTR int bootCount = 0;
 
-// #define SPEECH_STACK_SZ      (256*4)
-#define SPEECH_STACK_SZ      8192
+// 2048 is too small
+#define SPEECH_STACK_SZ      3072
 static TaskHandle_t Speech_Task_Handle = NULL;
 char voiceMsg[80]; // copy of message prepared by traffic helper
 
@@ -675,7 +675,7 @@ static bool play_file(char *filename)
   File wavfile = SD.open(filename);
 
   if (wavfile) {
-  Serial.println(filename);
+//    Serial.println(filename);
     int c = 0;
     int n;
     while (wavfile.available()) {
@@ -730,8 +730,8 @@ static bool play_file(char *filename)
         uint32_t data[32];
         n = wavfile.read((uint8_t *)&data, sizeof(data));
         if (n > 0) {
-          i2s_write_bytes((i2s_port_t)i2s_num, (const char *)&data, n, 100);		
-		} 
+          i2s_write_bytes((i2s_port_t)i2s_num, (const char *)&data, n, 100);
+        } 
         break;
       }
     }
@@ -754,12 +754,11 @@ static void ESP32_TTS(char *message)
   xTaskCreate(Speech_Task, "Speech Task", SPEECH_STACK_SZ, NULL, 1,
               &Speech_Task_Handle);
 //  Serial.println("Voice Task started");
-  }					   
+  }
   // is string is empty
   if (voiceMsg && !voiceMsg[0]) {
     // copy the string and return
     strcpy(voiceMsg, message);
-//} // else just return
   } else {
     Serial.print("ignore "); Serial.println(message);
   }
@@ -769,23 +768,24 @@ void Speech_Task( void * parameter )
 {
   char filename[MAX_FILENAME_LEN];
   int taskState = 0;
+  uint16_t temp1;
 
   while (1) {
     switch (taskState) {
       case 0: // wait for message
         if (voiceMsg && voiceMsg[0]) {
-  Serial.println(voiceMsg);
-		  taskState = 1;
-		}
-		vTaskDelay(100);
+//          Serial.println(voiceMsg);
+          taskState = 1;
+        }
+        vTaskDelay(100);
         break;
       case 1: // parse message
         if (strcmp(voiceMsg, "POST")) {
           if (settings->voice != VOICE_OFF && settings->adapter == ADAPTER_TTGO_T5S) {
             if (SD.cardType() == CARD_NONE) {
-		      taskState = 2;
+              taskState = 2;
               break;
-			}
+            }
 
             char *word = strtok (voiceMsg, " ");
 
@@ -800,7 +800,7 @@ void Speech_Task( void * parameter )
               play_file(filename);
               word = strtok (NULL, " ");
             }
-	        taskState = 2;
+            taskState = 2;
             break;
           }
         } else {
@@ -810,20 +810,23 @@ void Speech_Task( void * parameter )
             strcat(filename, WAV_FILE_SUFFIX);
             if (SD.cardType() == CARD_NONE || !play_file(filename)) {
             }
-	        taskState = 2;
+            taskState = 2;
             break;
           }
         }
         break;
       case 2: // all done, clear the message string
-          if (voiceMsg) {
-			voiceMsg[0] = '\0';
-		  }
+//          if (voiceMsg) {
+            voiceMsg[0] = '\0';
+//        }
           taskState = 0;
+          // debug for determining stack size required
+//        temp1 = uxTaskGetStackHighWaterMark(NULL);
+//        Serial.print(F("Task Stack: ")); Serial.println(temp1);
         break;
       default:
         break;
-	}
+    }
   }
 }
 
@@ -955,7 +958,7 @@ static void ESP32_Button_fini()
 
 static void ESP32_WDT_setup()
 {
-//  enableLoopWDT();
+  enableLoopWDT();
 }
 
 static void ESP32_WDT_fini()
