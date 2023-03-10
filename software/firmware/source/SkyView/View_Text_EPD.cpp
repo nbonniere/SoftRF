@@ -61,12 +61,7 @@ static void EPD_Draw_Text()
       EPD_current = j;
     }
 
-      bearing = (int) (traffic[EPD_current - 1].fop->RelativeBearing);
-
-    /* This bearing is always relative to current ground track */
-//  if (settings->orientation == DIRECTION_TRACK_UP) {
-      bearing -= ThisAircraft.Track;
-//  }
+      bearing = (int) (traffic[EPD_current - 1].fop->RelativeBearing);  // relative to track
 
     while (bearing < 0) {
       bearing += 360;
@@ -194,7 +189,8 @@ static void EPD_Draw_Text()
       y += TEXT_VIEW_LINE_SPACING;
 
       if (oclock == 0) {
-        strcpy(info_line, "   ahead");
+//        strcpy(info_line, "   ahead");
+        strcpy(info_line, " 12 o'clock"); 
       } else {
         snprintf(info_line, sizeof(info_line), " %2d o'clock", oclock);
       }
@@ -217,6 +213,7 @@ static void EPD_Draw_Text()
 
       snprintf(info_line, sizeof(info_line), "%4d %s ", disp_alt, u_alt);
 
+      // +/- 50 metre range (164 ft)
       if (traffic[EPD_current - 1].fop->RelativeVertical > 50) {
         strcat(info_line, "above");
       } else if (traffic[EPD_current - 1].fop->RelativeVertical < -50) {
@@ -233,7 +230,7 @@ static void EPD_Draw_Text()
 
       y += TEXT_VIEW_LINE_SPACING;
 
-      snprintf(info_line, sizeof(info_line), "CoG %3d deg",
+      snprintf(info_line, sizeof(info_line), "Trk %3d deg",
                traffic[EPD_current - 1].fop->Track);
       display->getTextBounds(info_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       y += tbh;

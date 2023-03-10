@@ -270,7 +270,7 @@ void handleSettings() {
 <th align=left>Radar orientation</th>\
 <td align=right>\
 <select name='orientation'>\
-<option %s value='%d'>CoG Up</option>\
+<option %s value='%d'>Track Up</option>\
 <option %s value='%d'>North Up</option>\
 </select>\
 </td>\

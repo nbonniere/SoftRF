@@ -108,7 +108,7 @@ static void NMEA_Parse_Character(char c)
         }
 
         fo.RelativeDistance = fast_magnitude(fo.RelativeNorth, fo.RelativeEast);
-        fo.RelativeBearing  = fast_atan2(fo.RelativeNorth, fo.RelativeEast)*180/PI;
+        fo.RelativeBearing  = fast_atan2(fo.RelativeNorth, fo.RelativeEast)*180/PI - ThisAircraft.Track; // relative to track
 //          Serial.print(F(" RelativeBearing=")); Serial.println(fo.RelativeBearing);
 
         if (T_RelativeVertical.isUpdated())
@@ -226,11 +226,11 @@ static void NMEA_Parse_Character(char c)
           fo.ID               = NMEA_Status.ID;
           fo.RelativeDistance = NMEA_Status.RelativeDistance;
           fo.RelativeVertical = NMEA_Status.RelativeVertical;
-          fo.RelativeBearing  = NMEA_Status.RelativeBearing;
+          fo.RelativeBearing  = NMEA_Status.RelativeBearing;  // relative to track
           fo.AlarmLevel       = NMEA_Status.AlarmLevel;
 
-          fo.RelativeNorth   = fo.RelativeDistance * fast_cosine(radians(fo.RelativeBearing+ThisAircraft.Track));
-          fo.RelativeEast    = fo.RelativeDistance * fast_sine(radians(fo.RelativeBearing+ThisAircraft.Track));
+          fo.RelativeNorth   = fo.RelativeDistance * fast_cosine(radians(fo.RelativeBearing + ThisAircraft.Track));
+          fo.RelativeEast    = fo.RelativeDistance * fast_sine(radians(fo.RelativeBearing + ThisAircraft.Track));
           fo.Track           = -360; // flag as unknown
           fo.GroundSpeed     = -1;   // flag as unknown
 

@@ -74,6 +74,11 @@ typedef struct traffic_by_dist_struct {
 #define VOICE_EXPIRATION_TIME   5 /* seconds */
 
 #define TRAFFIC_ALERT_VOICE     1
+#define TRAFFIC_RANGE_VOICE     2
+#define TRAFFIC_DONE_VOICE      4
+
+#define TRAFFIC_DISTANCE_IN_RANGE  2000 // m
+#define TRAFFIC_DISTANCE_OUT_RANGE 3000 // m
 
 float fast_magnitude(float rel_x, float rel_y);
 float fast_atan2(float rel_x, float rel_y);

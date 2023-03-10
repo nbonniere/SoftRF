@@ -201,11 +201,13 @@ void Traffic_Update(traffic_t *fop)
   fop->RelativeBearing  = nmea.courseTo( ThisAircraft.latitude,
                                   ThisAircraft.longitude,
                                   fop->latitude,
-                                  fop->longitude);
+                                  fop->longitude);  // relative to North
 
   fop->RelativeNorth     = fop->RelativeDistance * cos(radians(fop->RelativeBearing));
   fop->RelativeEast      = fop->RelativeDistance * sin(radians(fop->RelativeBearing));
   fop->RelativeVertical  = fop->altitude - ThisAircraft.altitude;
+
+  fop->RelativeBearing  -= ThisAircraft.Track; // make relative to track 
 }
 
 static void Traffic_Voice()
@@ -217,8 +219,18 @@ static void Traffic_Voice()
 
   for (i=0; i < MAX_TRACKING_OBJECTS; i++) {
     if (Container[i].ID && (now() - Container[i].timestamp) <= VOICE_EXPIRATION_TIME) {
-
       traffic[j].fop = &Container[i];
+
+      // if in-range then check if out of range
+      if ((traffic[j].fop->alert & TRAFFIC_DONE_VOICE) != 0) {
+        if (traffic[j].fop->RelativeDistance > TRAFFIC_DISTANCE_OUT_RANGE) {
+          traffic[j].fop->alert &= ~TRAFFIC_DONE_VOICE;
+        }
+      // else check for in-range  
+      } else if (traffic[j].fop->RelativeDistance < TRAFFIC_DISTANCE_IN_RANGE) {
+        traffic[j].fop->alert |= TRAFFIC_RANGE_VOICE;
+      }   
+
       traffic[j].distance = Container[i].RelativeDistance;
       j++;
     }
@@ -242,14 +254,10 @@ static void Traffic_Voice()
    */
   for (i=0; i < j; i++) {
     if ( ((traffic[i].fop->alert & TRAFFIC_ALERT_VOICE) == 0) ||
+         ((traffic[i].fop->alert & TRAFFIC_RANGE_VOICE) != 0) ||
           (traffic[i].fop->AlarmLevel != 0) ){
 
-      bearing = (int) (traffic[i].fop->RelativeBearing);
-
-      /* This bearing is always relative to current ground track */
-//    if (settings->orientation == DIRECTION_TRACK_UP) {
-          bearing -= ThisAircraft.Track;
-//    }
+      bearing = (int) (traffic[i].fop->RelativeBearing);   // relative to Track
 
       while (bearing < 0) {
         bearing += 360;
@@ -298,74 +306,95 @@ static void Traffic_Voice()
         break;
       }
 
-      switch (settings->units)
-      {
-      case UNITS_IMPERIAL:
-        u_dist = "nautical miles";
-        u_alt  = "feet";
-        voc_dist = (traffic[i].distance * _GPS_MILES_PER_METER) /
-                    _GPS_MPH_PER_KNOT;
-        voc_alt  = abs((int) (traffic[i].fop->RelativeVertical *
-                    _GPS_FEET_PER_METER));
-        break;
-      case UNITS_MIXED:
-        u_dist = "kms";
-        u_alt  = "feet";
-        voc_dist = traffic[i].distance / 1000.0;
-        voc_alt  = abs((int) (traffic[i].fop->RelativeVertical *
-                    _GPS_FEET_PER_METER));
-        break;
-      case UNITS_METRIC:
-      default:
-        u_dist = "kms";
-        u_alt  = "metres";
-        voc_dist = traffic[i].distance / 1000.0;
-        voc_alt  = abs((int) traffic[i].fop->RelativeVertical);
-        break;
-      }
-
-      if (voc_dist < 1.0) {
-        strcpy(how_far, "near");
-      } else {
-        if (voc_dist > 9.0) {
-          voc_dist = 9.0;
-        }
-        snprintf(how_far, sizeof(how_far), "%u %s", (int) voc_dist, u_dist);
-      }
-
-      // short fast message if alarm present
+      // short fast message if alarm present, 
       if ((traffic[i].fop->AlarmLevel != 0)) {
-        if (traffic[i].fop->RelativeVertical < 100) {
+        // +/- 50 metre range (164 ft)
+        if (traffic[i].fop->RelativeVertical < -50) {
           strcpy(elev, "low");
+        } else if (traffic[i].fop->RelativeVertical > 50) {
+          strcpy(elev, "high");
         } else {
-          if (traffic[i].fop->RelativeVertical > 100) {
-            strcpy(elev, "high");
-          } else {
-            strcpy(elev, "");
-          }
+          strcpy(elev, "");
         }
         snprintf(message, sizeof(message),
 //                    "danger %s %s",
                     "%s %s",
                     where, elev);
 
-      } else {  // longer status message
-        if (voc_alt < 100) {
-          strcpy(elev, "near");
-        } else {
-          if (voc_alt > 500) {
-            voc_alt = 500;
-          }
-          snprintf(elev, sizeof(elev), "%u hundred %s %s",
-                   (voc_alt / 100), u_alt,
-                   traffic[i].fop->RelativeVertical > 0 ? "above" : "below");
+      // longer status message
+      } else if ((traffic[i].fop->alert & TRAFFIC_RANGE_VOICE) != 0) {
+      
+        switch (settings->units)
+        {
+        case UNITS_IMPERIAL:
+          u_dist = "nautical miles";
+          u_alt  = "feet";
+          voc_dist = (traffic[i].distance * _GPS_MILES_PER_METER) /
+                      _GPS_MPH_PER_KNOT;
+          voc_alt  = abs((int) (traffic[i].fop->RelativeVertical *
+                      _GPS_FEET_PER_METER / 50)); // resolution 50 feet
+          break;
+        case UNITS_MIXED:
+          u_dist = "kms";
+          u_alt  = "feet";
+          voc_dist = traffic[i].distance / 1000.0;
+          voc_alt  = abs((int) (traffic[i].fop->RelativeVertical *
+                      _GPS_FEET_PER_METER / 50)); // resolution 50 feet
+          break;
+        case UNITS_METRIC:
+        default:
+          u_dist = "kms";
+          u_alt  = "metres";
+          voc_dist = traffic[i].distance / 1000.0;
+          voc_alt  = abs((int) traffic[i].fop->RelativeVertical / 50); // resolution 50 m
+          break;
         }
 
+        if (voc_dist < 1.0) {
+          strcpy(how_far, "near");
+        } else {
+          if (voc_dist > 20.0) { // after 20, voice needs to split by tenths
+            strcpy(how_far, "far");
+          } else {
+            snprintf(how_far, sizeof(how_far), "%u %s", (int) (voc_dist + 0.5), u_dist);
+          }
+        }
+
+        // +/- 50 metre range (164 ft)
+        if (abs(traffic[i].fop->RelativeVertical) < 50) {
+          strcpy(elev, "near");
+        } else {
+          if (voc_alt > (1950/50)) { // after 1950, voice needs to split by tenths
+            snprintf(elev, sizeof(elev), "%s",
+                     traffic[i].fop->RelativeVertical > 0 ? "high" : "low");
+          } else {
+            if ((voc_alt / 2)== 0) { // exception 0 hundred
+              snprintf(elev, sizeof(elev), "%s %s",
+                       (voc_alt % 2) == 1 ? "50" : "0", u_alt);
+            } else if ((voc_alt / 2)== 10) { // exception one thousand
+              snprintf(elev, sizeof(elev), "1 thousand %s %s",
+                       (voc_alt % 2) == 1 ? "50" : "", u_alt);
+            } else {
+              snprintf(elev, sizeof(elev), "%u hundred %s %s",
+                       (voc_alt / 2), 
+                       (voc_alt % 2) == 1 ? "50" : "", u_alt);
+            }
+            strcat(elev,(traffic[i].fop->RelativeVertical > 0 ? " above" : " below"));
+          }         
+        }
         snprintf(message, sizeof(message),
                  "traffic %s distance %s altitude %s",
                  where, how_far, elev);
+                 
+        traffic[i].fop->alert &= ~TRAFFIC_RANGE_VOICE;
+        traffic[i].fop->alert |= TRAFFIC_DONE_VOICE;
+                 
+      } else { // short notification message
+//        strcpy(elev, "traffic near");
+        strcpy(message, "traffic");
       }
 
+      // in all cases voice has been done
       traffic[i].fop->alert |= TRAFFIC_ALERT_VOICE;
 
       traffic[i].fop->timestamp = now();
