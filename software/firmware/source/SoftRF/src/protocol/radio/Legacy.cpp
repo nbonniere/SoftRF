@@ -52,8 +52,7 @@ const rf_proto_desc_t legacy_proto_desc = {
   .tx_interval_max  = LEGACY_TX_INTERVAL_MAX
 };
 
-// 0 - Glider, 1 Power-plane
-//const int32_t EP[2][4] = {2,3,2,2,2,4,4,4}; // {2, 2+3, 2+3+2, 2+3+2+2}, {2, 2+4, 2+4+4, 2+4+4+4}
+int extrapolIndex = 1; // default, 0 - Glider, 1 tow-plane
 const int32_t EP[2][4] = {2,2,2,2,2,4,4,4}; // {2, 2+2, 2+2+2, 2+2+2+2}, {2, 2+4, 2+4+4, 2+4+4+4}
 
 /* http://en.wikipedia.org/wiki/XXTEA */
@@ -193,13 +192,28 @@ bool legacy_decode(void *legacy_pkt, ufo_t *this_aircraft, ufo_t *fop) {
 //    fop->ew[2] = pkt->ew[2]; fop->ew[3] = pkt->ew[3];
     float turnRate = atan2f(pkt->ew[2],pkt->ns[2]) - atan2f(pkt->ew[1],pkt->ns[1]);
     if (turnRate > PI) {
-	  turnRate -= 2* PI;
-	} else {
+	    turnRate -= 2* PI;
+	  } else {
       if (turnRate <= -PI) {
-	    turnRate += 2* PI;
-	  }
+	      turnRate += 2* PI;
+	    }
     }		
-    fop->turnRate = turnRate * 180 / PI / EP[0][1]; // depends on aircraft type
+    // calculate extrapolated speed vectors
+    switch (fop->aircraft_type) {
+    case AIRCRAFT_TYPE_GLIDER: {
+        extrapolIndex = 0;
+      }
+      break;
+    case AIRCRAFT_TYPE_TOWPLANE: {
+        extrapolIndex = 1;
+      }
+      break;
+    default: {
+        extrapolIndex = 1; // default
+      }
+      break;
+    }
+    fop->turnRate = turnRate * 180 / PI / EP[extrapolIndex][1]; // depends on aircraft type
 
     return true;
 }
@@ -253,6 +267,22 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
 
     uint8_t speed = speed4;
 
+  // calculate extrapolated speed vectors
+  switch (this_aircraft->aircraft_type) {
+  case AIRCRAFT_TYPE_GLIDER: {
+      extrapolIndex = 0;
+    }
+    break;
+  case AIRCRAFT_TYPE_TOWPLANE: {
+      extrapolIndex = 1;
+    }
+    break;
+  default: {
+      extrapolIndex = 1; // default
+    }
+    break;
+  }
+
     // extrapolate forwards 2 seconds
     // but first calculate Lat, Long, using tangent halfway, i.e. 1 second
     course = course + 1 * turnRate;
@@ -260,7 +290,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     lat = lat + (speedf * 2 / MperDeg * cosf(radians(course)));
     lon = lon + (speedf * 2 / MperDeg * sinf(radians(course)))/cosf(radians(lat));
 	// next do heading at 2 seconds, i.e. one more after tangent
-    course = course + 1 * turnRate;
+    course = course + (EP[extrapolIndex][0]-1) * turnRate;
     // Normalize
     if (course >= 360){
       course -= 360;
@@ -274,7 +304,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     pkt->ew[0] = (int8_t) (speed * sinf(radians(course)));
 
     // extrapolate forwards 4 more seconds
-    course = course + EP[0][1] * turnRate;
+    course = course + EP[extrapolIndex][1] * turnRate;
     // Normalize
     if (course >= 360){
       course -= 360;
@@ -288,7 +318,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     pkt->ew[1] = (int8_t) (speed * sinf(radians(course)));
 
     // extrapolate forwards 4 more seconds
-    course = course + EP[0][2] * turnRate;
+    course = course + EP[extrapolIndex][2] * turnRate;
     // Normalize
     if (course >= 360){
       course -= 360;
@@ -302,7 +332,7 @@ size_t legacy_encode(void *legacy_pkt, ufo_t *this_aircraft) {
     pkt->ew[2] = (int8_t) (speed * sinf(radians(course)));
 
     // extrapolate forwards 4 more seconds
-    course = course + EP[0][3] * turnRate;
+    course = course + EP[extrapolIndex][3] * turnRate;
     // Normalize
     if (course >= 360){
       course -= 360;
