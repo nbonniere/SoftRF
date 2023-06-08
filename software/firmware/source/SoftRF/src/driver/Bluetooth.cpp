@@ -64,6 +64,7 @@ uint8_t midiPacket[] = {
 cbuf *BLE_FIFO_RX, *BLE_FIFO_TX;
 BluetoothSerial SerialBT;
 String BT_name = HOSTNAME;
+char BT_ID[7];
 
 static unsigned long BLE_Notify_TimeMarker = 0;
 static unsigned long BLE_Advertising_TimeMarker = 0;
@@ -145,7 +146,9 @@ void ESP32_BLEMIDI_test()
 static void ESP32_Bluetooth_setup()
 {
 
-  BT_name += String(SoC->getChipId() & 0x00FFFFFFU, HEX);
+  snprintf(BT_ID, sizeof(BT_ID), "%06X", (SoC->getChipId() & 0xFFFFFF));
+//  BT_name += String(SoC->getChipId() & 0x00FFFFFFU, HEX);
+  BT_name += String(BT_ID);
 
   switch(settings->bluetooth)
   {

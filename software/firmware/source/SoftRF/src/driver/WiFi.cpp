@@ -42,6 +42,7 @@ String station_ssid = MY_ACCESSPOINT_SSID ;
 String station_psk  = MY_ACCESSPOINT_PSK ;
 
 String host_name = HOSTNAME;
+char host_ID[7];
 
 IPAddress local_IP(192,168,1,1);
 IPAddress gateway(192,168,1,1);
@@ -270,7 +271,9 @@ void WiFi_setup()
   }
 
   // Set Hostname.
-  host_name += String((SoC->getChipId() & 0xFFFFFF), HEX);
+  snprintf(host_ID, sizeof(host_ID), "%06X", (SoC->getChipId() & 0xFFFFFF));
+//  host_name += String((SoC->getChipId() & 0xFFFFFF), HEX);
+  host_name += String(host_ID);
   SoC->WiFi_hostname(host_name);
 
   // Print hostname.
