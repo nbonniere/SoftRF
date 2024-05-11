@@ -133,6 +133,7 @@ class Adafruit_BMP280
     Adafruit_BMP280(int8_t cspin);
     Adafruit_BMP280(int8_t cspin, int8_t mosipin, int8_t misopin, int8_t sckpin);
 
+    bool  setWire(TwoWire *twoWire = &Wire);
     bool  begin(uint8_t addr = BMP280_ADDRESS, uint8_t chipid = BMP280_CHIPID);
     float readTemperature(void);
     float readPressure(void);
@@ -151,6 +152,8 @@ class Adafruit_BMP280
     uint16_t  read16_LE(byte reg); // little endian
     int16_t   readS16_LE(byte reg); // little endian
 
+    TwoWire *_i2c; // programmable I2C wire
+    
     uint8_t   _i2caddr;
     int32_t   _sensorID;
     int32_t t_fine;

@@ -55,6 +55,7 @@
 class Adafruit_BMP085 {
  public:
   Adafruit_BMP085();
+  boolean setWire(TwoWire *twoWire = &Wire);
   boolean begin(uint8_t mode = BMP085_ULTRAHIGHRES);  // by default go highres
   float readTemperature(void);
   int32_t readPressure(void);
@@ -64,6 +65,8 @@ class Adafruit_BMP085 {
   uint32_t readRawPressure(void);
   
  private:
+  TwoWire *_i2c; // programmable I2C wire
+ 
   int32_t computeB5(int32_t UT);
   uint8_t read8(uint8_t addr);
   uint16_t read16(uint8_t addr);

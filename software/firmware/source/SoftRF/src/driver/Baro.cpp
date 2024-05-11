@@ -66,7 +66,18 @@ static int avg_ndx = 0;
 #if !defined(EXCLUDE_BMP180)
 static bool bmp180_probe()
 {
-  return bmp180.begin();
+//  return bmp180.begin();
+  bmp180.setWire(&Wire);
+  if (bmp180.begin()) {
+    return true;
+  } else {
+    bmp180.setWire(&Wire1);
+    if (bmp180.begin()) {
+      return true;
+    } else {
+      return false;
+    }    
+  }    
 }
 
 static void bmp180_setup()
@@ -118,12 +129,34 @@ barochip_ops_t bmp180_ops = {
 #if !defined(EXCLUDE_BMP280)
 static bool bmp280_probe()
 {
-  return (
+/*  return (
           bmp280.begin(BMP280_ADDRESS,     BMP280_CHIPID) ||
           bmp280.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID) ||
           bmp280.begin(BMP280_ADDRESS,     BME280_CHIPID) ||
           bmp280.begin(BMP280_ADDRESS_ALT, BME280_CHIPID)
          );
+*/         
+  bmp280.setWire(&Wire);
+  if (
+    bmp280.begin(BMP280_ADDRESS,     BMP280_CHIPID) ||
+    bmp280.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID) ||
+    bmp280.begin(BMP280_ADDRESS,     BME280_CHIPID) ||
+    bmp280.begin(BMP280_ADDRESS_ALT, BME280_CHIPID)
+  ) {
+    return true;
+  } else {
+    bmp280.setWire(&Wire1);
+    if (
+      bmp280.begin(BMP280_ADDRESS,     BMP280_CHIPID) ||
+      bmp280.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID) ||
+      bmp280.begin(BMP280_ADDRESS,     BME280_CHIPID) ||
+      bmp280.begin(BMP280_ADDRESS_ALT, BME280_CHIPID)
+    ) {
+      return true;
+    } else {
+      return false;
+    }    
+  }    
 }
 
 static void bmp280_setup()
@@ -173,7 +206,16 @@ barochip_ops_t bmp280_ops = {
 #if !defined(EXCLUDE_MPL3115A2)
 static bool mpl3115a2_probe()
 {
-  return mpl3115a2.begin();
+//  return mpl3115a2.begin();
+  if (mpl3115a2.begin(&Wire)) {
+    return true;
+  } else {
+    if (mpl3115a2.begin(&Wire1)) {
+      return true;
+    } else {
+      return false;
+    }    
+  }    
 }
 
 static void mpl3115a2_setup()
@@ -222,17 +264,17 @@ barochip_ops_t mpl3115a2_ops = {
 bool Baro_probe()
 {
   return (
-#if !defined(EXCLUDE_BMP180)
-           (baro_chip = &bmp180_ops,    baro_chip->probe()) ||
-#else
-           false                                            ||
-#endif /* EXCLUDE_BMP180 */
-
 #if !defined(EXCLUDE_BMP280)
            (baro_chip = &bmp280_ops,    baro_chip->probe()) ||
 #else
            false                                            ||
 #endif /* EXCLUDE_BMP280 */
+
+#if !defined(EXCLUDE_BMP180)
+           (baro_chip = &bmp180_ops,    baro_chip->probe()) ||
+#else
+           false                                            ||
+#endif /* EXCLUDE_BMP180 */
 
 #if !defined(EXCLUDE_MPL3115A2)
            (baro_chip = &mpl3115a2_ops, baro_chip->probe())
@@ -244,7 +286,8 @@ bool Baro_probe()
 
 byte Baro_setup()
 {
-  if ( SoC->Baro_setup() && Baro_probe() ) {
+//  if ( SoC->Baro_setup() && Baro_probe() ) {
+  if ( SoC->Baro_setup() /* && Baro_probe() */ ) {    // Baro_probe() also called from inside ESP32_Baro_setup()
 
     Serial.print(baro_chip->name);
     Serial.println(F(" barometric pressure sensor is detected."));

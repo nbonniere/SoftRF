@@ -156,7 +156,7 @@ void setup()
 
   EEPROM_setup();
 
-  SoC->Button_setup();
+//  SoC->Button_setup(); // bug - move after baro-Setup rev 5 not determined yet
 
   if (settings->aircraftID == 0) {
     ThisAircraft.addr = SoC->getChipId() & 0x00FFFFFF;
@@ -171,6 +171,9 @@ void setup()
   delay(100);
 
   hw_info.baro = Baro_setup();
+  
+  SoC->Button_setup();  
+  
 #if defined(ENABLE_AHRS)
   hw_info.ahrs = AHRS_setup();
 #endif /* ENABLE_AHRS */

@@ -36,13 +36,16 @@ Adafruit_BMP280::Adafruit_BMP280(int8_t cspin, int8_t mosipin, int8_t misopin, i
   : _cs(cspin), _mosi(mosipin), _miso(misopin), _sck(sckpin)
 { }
 
+bool Adafruit_BMP280::setWire(TwoWire *twoWire) {
+  _i2c = twoWire;
+}  
 
 bool Adafruit_BMP280::begin(uint8_t a, uint8_t chipid) {
   _i2caddr = a;
 
   if (_cs == -1) {
     // i2c
-    Wire.begin();
+    _i2c->begin();
   } else {
     digitalWrite(_cs, HIGH);
     pinMode(_cs, OUTPUT);
@@ -92,10 +95,10 @@ uint8_t Adafruit_BMP280::spixfer(uint8_t x) {
 void Adafruit_BMP280::write8(byte reg, byte value)
 {
   if (_cs == -1) {
-    Wire.beginTransmission((uint8_t)_i2caddr);
-    Wire.write((uint8_t)reg);
-    Wire.write((uint8_t)value);
-    Wire.endTransmission();
+    _i2c->beginTransmission((uint8_t)_i2caddr);
+    _i2c->write((uint8_t)reg);
+    _i2c->write((uint8_t)value);
+    _i2c->endTransmission();
   } else {
 #if defined(SPI_HAS_TRANSACTION)
     if (_sck == -1)
@@ -122,11 +125,11 @@ uint8_t Adafruit_BMP280::read8(byte reg)
   uint8_t value;
 
   if (_cs == -1) {
-    Wire.beginTransmission((uint8_t)_i2caddr);
-    Wire.write((uint8_t)reg);
-    Wire.endTransmission();
-    Wire.requestFrom((uint8_t)_i2caddr, (byte)1);
-    value = Wire.read();
+    _i2c->beginTransmission((uint8_t)_i2caddr);
+    _i2c->write((uint8_t)reg);
+    _i2c->endTransmission();
+    _i2c->requestFrom((uint8_t)_i2caddr, (byte)1);
+    value = _i2c->read();
 
   } else {
 #if defined(SPI_HAS_TRANSACTION)
@@ -155,11 +158,11 @@ uint16_t Adafruit_BMP280::read16(byte reg)
   uint16_t value;
 
   if (_cs == -1) {
-    Wire.beginTransmission((uint8_t)_i2caddr);
-    Wire.write((uint8_t)reg);
-    Wire.endTransmission();
-    Wire.requestFrom((uint8_t)_i2caddr, (byte)2);
-    value = (Wire.read() << 8) | Wire.read();
+    _i2c->beginTransmission((uint8_t)_i2caddr);
+    _i2c->write((uint8_t)reg);
+    _i2c->endTransmission();
+    _i2c->requestFrom((uint8_t)_i2caddr, (byte)2);
+    value = (_i2c->read() << 8) | _i2c->read();
 
   } else {
 #if defined(SPI_HAS_TRANSACTION)
@@ -213,16 +216,16 @@ uint32_t Adafruit_BMP280::read24(byte reg)
   uint32_t value;
 
   if (_cs == -1) {
-    Wire.beginTransmission((uint8_t)_i2caddr);
-    Wire.write((uint8_t)reg);
-    Wire.endTransmission();
-    Wire.requestFrom((uint8_t)_i2caddr, (byte)3);
+    _i2c->beginTransmission((uint8_t)_i2caddr);
+    _i2c->write((uint8_t)reg);
+    _i2c->endTransmission();
+    _i2c->requestFrom((uint8_t)_i2caddr, (byte)3);
     
-    value = Wire.read();
+    value = _i2c->read();
     value <<= 8;
-    value |= Wire.read();
+    value |= _i2c->read();
     value <<= 8;
-    value |= Wire.read();
+    value |= _i2c->read();
 
   } else {
 #if defined(SPI_HAS_TRANSACTION)

@@ -247,7 +247,9 @@ static void ESP32_setup()
   } else if (hw_info.model == SOFTRF_MODEL_PRIME_MK2) {
     esp32_board = ESP32_TTGO_T_BEAM;
 
+    // set up 1st I2C port
     Wire1.begin(TTGO_V2_OLED_PIN_SDA , TTGO_V2_OLED_PIN_SCL);
+    
     Wire1.beginTransmission(AXP192_SLAVE_ADDRESS);
     if (Wire1.endTransmission() == 0) {
       hw_info.revision = 8;
@@ -278,6 +280,9 @@ static void ESP32_setup()
     }
     lmic_pins.rst  = SOC_GPIO_PIN_TBEAM_RF_RST_V05;
     lmic_pins.busy = SOC_GPIO_PIN_TBEAM_RF_BUSY_V08;
+        
+    // set up 2nd I2C port
+    Wire.begin(SOC_GPIO_PIN_TBEAM_SDA, SOC_GPIO_PIN_TBEAM_SCL);
   }
 }
 
@@ -1228,7 +1233,10 @@ static bool ESP32_Baro_setup()
       hw_info.revision = 5;
     }
 
-    /* Start from 1st I2C bus */
+    return Baro_probe();
+
+/*
+    /* Start from 1st I2C bus * /
     Wire.begin(SOC_GPIO_PIN_TBEAM_SDA, SOC_GPIO_PIN_TBEAM_SCL);
     if (Baro_probe())
       return true;
@@ -1237,7 +1245,7 @@ static bool ESP32_Baro_setup()
       return false;
 
 #if !defined(ENABLE_AHRS)
-    /* Try out OLED I2C bus */
+    /* Try out OLED I2C bus * /
     Wire.begin(TTGO_V2_OLED_PIN_SDA, TTGO_V2_OLED_PIN_SCL);
     if (!Baro_probe())
       return false;
@@ -1246,6 +1254,7 @@ static bool ESP32_Baro_setup()
 #else
     return false;
 #endif
+*/
   }
 
   return true;
@@ -1321,8 +1330,13 @@ void onPageButtonEvent() {
 
 static void ESP32_Button_setup()
 {
-  if (hw_info.model == SOFTRF_MODEL_PRIME_MK2 && hw_info.revision == 5) {
+//  if (hw_info.model == SOFTRF_MODEL_PRIME_MK2 && hw_info.revision == 5) {
+  if (hw_info.model == SOFTRF_MODEL_PRIME_MK2 && (hw_info.revision == 2 || hw_info.revision == 5)) {
     int button_pin = SOC_GPIO_PIN_TBEAM_V05_BUTTON;
+
+    Serial.println();
+    Serial.print(F("Button Set-up "));
+    Serial.println(button_pin);
 
     // Button(s) uses external pull up resistor.
     pinMode(button_pin, INPUT);
